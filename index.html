@@ -1,12 +1,378 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta http-equiv="refresh" content="0;url=index%20(1).html">
-  <title>Baa Local</title>
-  <link rel="canonical" href="index%20(1).html">
-</head>
-<body><p>Opening <a href="index%20(1).html">Baa Local</a>…</p></body>
-</html>
+  <!-- =====================================================
+       DOCUMENT METADATA
+       ===================================================== -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#062d35" />
+  <title>Baa Local — Discover Baa Atoll</title>
+  <meta name="description" content="A concept marketplace for local-island stays, experiences and transfers across Baa Atoll, Maldives." />
+  <!-- =====================================================
+       EXTERNAL FONTS
+       ===================================================== -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <!-- =====================================================
+       PAGE STYLES
+       ===================================================== -->
+  <style>
+    /* 1. Design tokens */
+    :root{
+      --ink:#082b32;--muted:#64777b;--sea:#0c7c86;--aqua:#62d3cf;--foam:#f4fbf9;--sand:#f4ead7;
+      --deep:#052c34;--line:#dbe8e5;--white:#fff;--shadow:0 20px 60px rgba(4,45,53,.12);
+      --radius:26px;
+    }
+    /* 2. Global reset and shared elements */
+    *{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;background:#fff}
+    a{color:inherit;text-decoration:none} button,input,select{font:inherit} img{display:block;width:100%}
+    .wrap{width:min(1180px,calc(100% - 40px));margin:auto}
+    /* 3. Header navigation */
+    .nav{position:absolute;z-index:20;top:0;left:0;right:0;height:86px;color:#fff;border-bottom:1px solid rgba(255,255,255,.18)}
+    .nav .wrap{height:100%;display:flex;align-items:center;gap:30px}.brand{display:flex;align-items:center;gap:11px;font-family:Manrope;font-weight:800;letter-spacing:-.03em;font-size:22px}
+    .brand-mark{width:36px;height:36px;border-radius:50%;border:2px solid #fff;position:relative}.brand-mark:after{content:"";position:absolute;left:6px;right:6px;bottom:7px;height:8px;border-radius:50%;border-top:2px solid #fff;transform:rotate(-7deg)}
+    .navlinks{display:flex;gap:26px;margin-left:auto;font-weight:600;font-size:14px}.nav-cta{border:1px solid rgba(255,255,255,.5);padding:11px 16px;border-radius:99px}.hamb{display:none;margin-left:auto;background:none;border:0;color:#fff;font-size:25px}
+    /* 4. Hero and search form */
+    .hero{min-height:770px;position:relative;color:#fff;display:grid;align-items:end;overflow:hidden;background:#0a4e59}
+    .hero:before{content:"";position:absolute;inset:0;background-image:linear-gradient(180deg,rgba(1,29,35,.23),rgba(1,34,40,.74) 76%,rgba(1,34,40,.91)),url('https://commons.wikimedia.org/wiki/Special:Redirect/file/Baa%20atoll%20islands.JPG');background-size:cover;background-position:center 52%}
+    .hero:after{content:"";position:absolute;inset:auto -10% -170px;height:260px;background:#fff;border-radius:50% 50% 0 0/30% 30% 0 0}
+    .hero-content{position:relative;z-index:2;padding:190px 0 125px}.eyebrow{display:inline-flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.14em;font-size:12px;font-weight:700}.eyebrow:before{content:"";width:27px;height:1px;background:currentColor}
+    h1,h2,h3{font-family:Manrope;margin:0;letter-spacing:-.045em}.hero h1{font-size:clamp(52px,7.2vw,92px);line-height:.98;max-width:850px;margin:18px 0 20px}.hero-copy{max-width:590px;font-size:18px;line-height:1.65;color:rgba(255,255,255,.86)}
+    .searchbox{margin-top:38px;background:#fff;padding:9px;border-radius:20px;display:grid;grid-template-columns:1.5fr 1fr .8fr auto;max-width:930px;color:var(--ink);box-shadow:0 22px 60px rgba(0,0,0,.18)}
+    .field{padding:13px 18px;border-right:1px solid var(--line)}.field label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;display:block;margin-bottom:6px;color:#75898b}.field input,.field select{width:100%;border:0;outline:0;background:transparent;color:var(--ink);font-weight:600}.searchbtn{border:0;border-radius:14px;background:var(--deep);color:#fff;padding:0 24px;font-weight:800;cursor:pointer}
+    /* 5. Trust highlights */
+    .trust{position:relative;z-index:4;margin-top:-64px}.trust-card{background:#fff;border-radius:25px;box-shadow:var(--shadow);display:grid;grid-template-columns:repeat(3,1fr);padding:25px 30px;gap:10px}.trust-item{display:flex;gap:14px;align-items:center;padding:8px 18px}.ico{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:var(--foam);font-size:22px}.trust-item strong{font-family:Manrope;display:block;font-size:15px}.trust-item span{font-size:13px;color:var(--muted)}
+    /* 6. Shared section headings */
+    section{padding:105px 0}.section-head{display:flex;justify-content:space-between;gap:30px;align-items:end;margin-bottom:38px}.section-head h2{font-size:clamp(38px,5vw,58px);line-height:1.02;max-width:680px}.section-head p{max-width:460px;color:var(--muted);line-height:1.7}.link{font-weight:800;color:var(--sea);white-space:nowrap}
+    /* 7. Island explorer */
+    .island-carousel{position:relative;width:100%;max-width:980px;margin-inline:auto}
+    .island-grid{display:grid;grid-auto-flow:column;grid-auto-columns:100%;gap:20px;overflow-x:auto;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;scroll-snap-type:x mandatory;scrollbar-width:none;padding:4px 2px 22px}
+    .island-grid::-webkit-scrollbar{display:none}
+    .island-card{appearance:none;position:relative;width:100%;height:clamp(390px,52vw,540px);min-height:0;padding:0;border:0;border-radius:var(--radius);overflow:hidden;background:#15555e;color:#fff;font:inherit;text-align:left;isolation:isolate;cursor:pointer;scroll-snap-align:start;scroll-snap-stop:always}
+    .island-card:before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 28%,rgba(2,30,34,.88));z-index:1}
+    .island-card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;transition:.6s transform}
+    .island-card:hover img,.island-card:focus-visible img{transform:scale(1.045)}
+    .island-card:focus-visible{outline:4px solid var(--aqua);outline-offset:4px}
+    .card-content{position:absolute;z-index:2;left:27px;right:27px;bottom:25px}
+    .badge{display:inline-block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;background:rgba(255,255,255,.17);backdrop-filter:blur(8px);padding:7px 10px;border:1px solid rgba(255,255,255,.25);border-radius:99px;margin-bottom:12px}
+    .island-card h3{font-size:34px}.island-card p{margin:5px 0 0;color:rgba(255,255,255,.78)}
+    .carousel-btn{position:absolute;z-index:5;top:50%;width:50px;height:50px;border:1px solid rgba(8,43,50,.12);border-radius:50%;background:rgba(255,255,255,.94);color:var(--deep);box-shadow:0 10px 30px rgba(4,45,53,.18);font-size:25px;font-weight:800;cursor:pointer;transform:translateY(-70%);transition:.2s}
+    .carousel-btn:hover{background:var(--deep);color:#fff;transform:translateY(-70%) scale(1.06)}
+    .carousel-btn:focus-visible{outline:3px solid var(--aqua);outline-offset:3px}
+    .carousel-prev{left:-25px}.carousel-next{right:-25px}
+    .all-islands{margin-top:26px;display:flex;flex-wrap:wrap;gap:9px}.pill{padding:10px 14px;border-radius:99px;background:var(--foam);color:var(--ink);border:1px solid var(--line);font-weight:700;font-size:13px;cursor:pointer;transition:.2s}.pill:hover,.pill.active{background:var(--deep);color:#fff;border-color:var(--deep)}.pill:focus-visible{outline:3px solid var(--aqua);outline-offset:2px}
+    /* 8. Marketplace cards */
+    .market{background:var(--foam)}.market-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}.market-card{background:#fff;border:1px solid var(--line);border-radius:24px;padding:32px;min-height:290px;display:flex;flex-direction:column;transition:.25s}.market-card:hover{transform:translateY(-4px);box-shadow:var(--shadow)}.market-card .bigico{font-size:34px;margin-bottom:52px}.market-card h3{font-size:28px}.market-card p{color:var(--muted);line-height:1.65}.market-card a{margin-top:auto;font-weight:800;color:var(--sea)}
+    /* 9. Today's experiences */
+    .today-wrap{display:grid;grid-template-columns:.85fr 1.15fr;gap:45px;align-items:center}.today-photo{height:610px;border-radius:32px;overflow:hidden;position:relative;background:#164f56}.today-photo img{height:100%;object-fit:cover}.photo-chip{position:absolute;bottom:24px;left:24px;right:24px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-radius:19px;padding:17px 20px;display:flex;justify-content:space-between;align-items:center}.photo-chip small{display:block;color:var(--muted)}
+    .today-copy h2{font-size:clamp(40px,5vw,62px);line-height:1.02}.today-copy>p{color:var(--muted);line-height:1.7}.date-tabs{display:flex;gap:8px;margin:28px 0 14px}.date-tab{border:1px solid var(--line);background:#fff;border-radius:99px;padding:9px 14px;font-weight:700;cursor:pointer}.date-tab.active{background:var(--deep);color:#fff}.activity{display:grid;grid-template-columns:60px 1fr auto;gap:15px;align-items:center;padding:17px 0;border-bottom:1px solid var(--line)}.activity time{font-weight:800}.activity strong{display:block}.activity small{color:var(--muted)}.spaces{font-size:12px;background:#e7f8f4;padding:7px 10px;border-radius:99px;color:#166b66;font-weight:800}
+    /* 10. Route planner */
+    .route{background:var(--deep);color:#fff;overflow:hidden}.route .section-head p{color:rgba(255,255,255,.65)}.routebox{background:#fff;color:var(--ink);border-radius:26px;padding:14px;display:grid;grid-template-columns:1fr 55px 1fr .8fr auto;align-items:center;gap:8px}.routebox .field{border:0}.swap{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--foam);display:grid;place-items:center}.routebtn{border:0;border-radius:15px;background:var(--aqua);color:#073e42;padding:19px 22px;font-weight:900}.route-note{margin-top:20px;color:rgba(255,255,255,.65);font-size:13px}
+    /* 11. Atoll story */
+    .story{display:grid;grid-template-columns:1fr 1fr;gap:55px;align-items:center}.story-media{display:grid;grid-template-columns:1fr .72fr;gap:12px}.story-media img{height:500px;object-fit:cover;border-radius:28px}.story-media img:last-child{height:355px;margin-top:75px}.story-copy h2{font-size:clamp(42px,5vw,64px);line-height:1}.story-copy p{color:var(--muted);line-height:1.8}.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:28px}.stat{padding:19px;border:1px solid var(--line);border-radius:18px}.stat strong{font-family:Manrope;font-size:27px;display:block}.stat span{font-size:12px;color:var(--muted)}
+    /* 12. Local business call-to-action */
+    .business{background:var(--sand)}.business-card{background:#f9f2e5;border-radius:32px;display:grid;grid-template-columns:1.1fr .9fr;overflow:hidden}.business-copy{padding:65px}.business h2{font-size:clamp(42px,5vw,64px)}.business p{color:#6f7068;line-height:1.7}.btn{display:inline-block;background:var(--deep);color:#fff;padding:14px 19px;border-radius:99px;font-weight:800;margin-top:14px}.business-art{min-height:420px;background:linear-gradient(140deg,#0a6770,#56d1c9);position:relative;overflow:hidden}.business-art:before,.business-art:after{content:"";position:absolute;border:1px solid rgba(255,255,255,.3);border-radius:50%}.business-art:before{width:360px;height:360px;right:-80px;top:20px}.business-art:after{width:250px;height:250px;left:30px;bottom:-90px}.mockphone{position:absolute;width:230px;height:390px;left:50%;top:50%;transform:translate(-50%,-50%) rotate(7deg);background:#fff;border:8px solid #07333a;border-radius:34px;box-shadow:0 20px 60px rgba(0,0,0,.25);padding:18px;color:var(--ink)}.mockphone b{font-family:Manrope}.mini{margin-top:15px;background:#f1f8f6;padding:12px;border-radius:13px;font-size:11px}.mini strong{font-size:13px}.dotrow{display:flex;gap:5px;margin-top:8px}.dot{width:6px;height:6px;background:#8fd7d1;border-radius:50%}
+    /* 13. Footer, mobile navigation, and toast notice */
+    footer{background:#031e24;color:#fff;padding:75px 0 30px}.footer-grid{display:grid;grid-template-columns:1.3fr repeat(3,1fr);gap:40px}.footer-about p{color:rgba(255,255,255,.55);max-width:330px;line-height:1.7}.footer-col b{display:block;margin-bottom:16px}.footer-col a{display:block;color:rgba(255,255,255,.6);margin:10px 0;font-size:14px}.credits{margin-top:55px;padding-top:24px;border-top:1px solid rgba(255,255,255,.12);font-size:11px;color:rgba(255,255,255,.42);line-height:1.7}.bottom-nav{display:none}
+    .notice{position:fixed;right:18px;bottom:18px;z-index:50;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);border-radius:15px;padding:13px 16px;font-size:13px;transform:translateY(120px);transition:.3s}.notice.show{transform:translateY(0)}
+    /* 14. Tablet responsive styles */
+    @media(max-width:850px){.navlinks{display:none}.hamb{display:block}.hero{min-height:700px}.hero-content{padding-top:145px}.searchbox{grid-template-columns:1fr 1fr}.searchbtn{min-height:58px;grid-column:span 2}.trust-card{grid-template-columns:1fr}.trust-item{border-bottom:1px solid var(--line)}.section-head{display:block}.section-head p{margin-top:18px}.island-card,.island-card:nth-child(n){grid-column:span 12;min-height:330px}.market-grid{grid-template-columns:1fr}.market-card{min-height:220px}.market-card .bigico{margin-bottom:30px}.today-wrap,.story,.business-card{grid-template-columns:1fr}.today-photo{height:420px}.routebox{grid-template-columns:1fr 40px 1fr}.routebox .field:nth-child(4){grid-column:1/3}.routebtn{grid-column:3}.story-media img{height:370px}.story-media img:last-child{height:270px}.business-copy{padding:40px}.footer-grid{grid-template-columns:1fr 1fr}.bottom-nav{display:flex;position:fixed;z-index:40;left:12px;right:12px;bottom:10px;background:rgba(4,40,47,.94);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.14);border-radius:18px;color:#fff;justify-content:space-around;padding:12px}.bottom-nav span{font-size:10px;display:block;text-align:center}.credits{padding-bottom:70px}}
+    /* 15. Mobile responsive styles */
+    @media(max-width:550px){.wrap{width:min(100% - 26px,1180px)}section{padding:75px 0}.nav{height:72px}.hero{min-height:730px}.hero h1{font-size:50px}.hero-copy{font-size:16px}.searchbox{grid-template-columns:1fr}.field{border-right:0;border-bottom:1px solid var(--line)}.searchbtn{grid-column:auto;min-height:55px}.trust{margin-top:-50px}.trust-card{padding:18px}.section-head h2{font-size:39px}.island-card{min-height:300px}.card-content{left:20px;bottom:20px}.island-card h3{font-size:29px}.today-photo{height:350px}.activity{grid-template-columns:50px 1fr}.spaces{grid-column:2}.routebox{grid-template-columns:1fr}.swap{display:none}.routebox .field:nth-child(4),.routebtn{grid-column:auto}.story-media{grid-template-columns:1fr}.story-media img,.story-media img:last-child{height:300px;margin:0}.stats{grid-template-columns:1fr 1fr}.business-copy{padding:32px 25px}.footer-grid{grid-template-columns:1fr}.mockphone{transform:translate(-50%,-50%) rotate(4deg) scale(.9)}}
 
+    /* Island carousel responsive overrides */
+    @media(max-width:850px){.island-grid{grid-auto-columns:100%}.island-card,.island-card:nth-child(n){grid-column:auto;height:clamp(350px,68vw,460px);min-height:0}.carousel-prev{left:-10px}.carousel-next{right:-10px}}
+    @media(max-width:550px){.island-grid{grid-auto-columns:100%;gap:14px;padding-bottom:17px}.island-card,.island-card:nth-child(n){height:clamp(320px,105vw,390px);min-height:0}.carousel-btn{width:42px;height:42px;font-size:21px}.carousel-prev{left:-7px}.carousel-next{right:-7px}}
+  </style>
+</head>
+<body>
+  <!-- =====================================================
+       1. DESKTOP HEADER AND PRIMARY NAVIGATION
+       ===================================================== -->
+  <header class="nav"><div class="wrap"><a href="#" class="brand"><span class="brand-mark"></span> Baa Local</a><nav class="navlinks"><a href="#islands">Islands</a><a href="listings.html?category=accommodation">Stay</a><a href="listings.html">Experiences</a><a href="#routes">Getting around</a><a href="register.html" class="nav-cta">List your business</a></nav><button class="hamb" aria-label="Menu">☰</button></div></header>
+
+  <!-- =====================================================
+       MAIN PAGE CONTENT
+       ===================================================== -->
+  <main>
+    <!-- ===================================================
+         2. HERO AND TRIP SEARCH
+         =================================================== -->
+    <section class="hero">
+      <div class="wrap hero-content">
+        <span class="eyebrow">Baa Atoll · Maldives</span>
+        <h1>One atoll.<br>So many ways to belong.</h1>
+        <p class="hero-copy">Discover local-island stays, reef experiences and ways to get around Baa Atoll — brought together in one simple travel hub.</p>
+        <form class="searchbox" id="heroSearch">
+          <div class="field"><label>Explore an island</label><select id="islandSelect"><option>Dharavandhoo</option><option>Dhonfanu</option><option>Eydhafushi</option><option>Fehendhoo</option><option>Fulhadhoo</option><option>Goidhoo</option><option>Hithaadhoo</option><option>Kamadhoo</option><option>Kendhoo</option><option>Kihaadhoo</option><option>Kudarikilu</option><option>Maalhos</option><option>Thulhaadhoo</option></select></div>
+          <div class="field"><label>When</label><input type="date" aria-label="Travel date"></div>
+          <div class="field"><label>Travelers</label><select><option>2 guests</option><option>1 guest</option><option>3 guests</option><option>4 guests</option><option>5+ guests</option></select></div>
+          <button class="searchbtn">Explore Baa →</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ===================================================
+         3. TRUST HIGHLIGHTS
+         =================================================== -->
+    <div class="trust"><div class="wrap"><div class="trust-card">
+      <div class="trust-item"><div class="ico">🏝️</div><div><strong>Local islands first</strong><span>Discover communities, not just properties.</span></div></div>
+      <div class="trust-item"><div class="ico">🧭</div><div><strong>One trip, connected</strong><span>Stay, experiences and transfers together.</span></div></div>
+      <div class="trust-item"><div class="ico">🤝</div><div><strong>Built for local business</strong><span>A direct route to island operators.</span></div></div>
+    </div></div></div>
+
+    <!-- ===================================================
+         4. EXPLORE BAA ATOLL BY ISLAND
+         =================================================== -->
+    <section id="islands"><div class="wrap">
+      <div class="section-head"><div><span class="eyebrow" style="color:var(--sea)">Explore by island</span><h2>Find your corner of Baa Atoll.</h2></div><p>Baa Atoll has 13 inhabited islands. Start with a community, then discover where to stay, what to do and how to get there.</p></div>
+      <div class="island-carousel">
+        <button type="button" class="carousel-btn carousel-prev" aria-label="Show previous islands">←</button>
+        <div class="island-grid" id="islandCarousel" tabindex="0" aria-label="Swipe through the inhabited islands of Baa Atoll">
+        <button type="button" class="island-card">
+          <img src="dharavandhoo.jpg" alt="Aerial view of Dharavandhoo island" loading="lazy">
+          <div class="card-content"><span class="badge">Airport · Reef gateway</span><h3>Dharavandhoo</h3><p>Easy arrival, local stays and a strong base for marine adventures.</p></div>
+        </button>
+
+        <button type="button" class="island-card">
+          <img src="dhonfan.jpg" alt="Aerial view of Dhonfanu island" loading="lazy">
+          <div class="card-content"><span class="badge">Fishing · Reef · Local life</span><h3>Dhonfanu</h3><p>A welcoming fishing community close to rich reefs and Hanifaru Bay.</p></div>
+        </button>
+
+        <button type="button" class="island-card">
+          <img src="eydhafushi.jpg" alt="Aerial view of Eydhafushi island" loading="lazy">
+          <div class="card-content"><span class="badge">Atoll capital · Community</span><h3>Eydhafushi</h3><p>See the everyday heart of Baa Atoll and connect with local services.</p></div>
+        </button>
+
+        <button type="button" class="island-card">
+          <img src="fehendhoo.jpg" alt="Aerial view of Fehendhoo island" loading="lazy">
+          <div class="card-content"><span class="badge">Long beach · Quiet escape</span><h3>Fehendhoo</h3><p>A slender, peaceful island with palm shade, beach walks and lagoon adventures.</p></div>
+        </button>
+
+        <button type="button" class="island-card">
+          <img src="fulhadhoo.jpg" alt="Aerial view of Fulhadhoo island" loading="lazy">
+          <div class="card-content"><span class="badge">Beach · Lagoon · Seclusion</span><h3>Fulhadhoo</h3><p>Wide white-sand beaches and a relaxed village within Goidhoo Atoll.</p></div>
+        </button>
+
+        <button type="button" class="island-card">
+          <img src="goidhoo.jpg" alt="View of Goidhoo island" loading="lazy">
+          <div class="card-content"><span class="badge">Mangroves · Heritage · Nature</span><h3>Goidhoo</h3><p>A spacious island community known for greenery, wetlands and traditional life.</p></div>
+        </button>
+
+        <button type="button" class="island-card">
+          <img src="hithaadhoo.jpg" alt="Aerial view of Hithaadhoo island" loading="lazy">
+          <div class="card-content"><span class="badge">Fishing · Community · Coast</span><h3>Hithaadhoo</h3><p>Discover a close-knit fishing island surrounded by reef and tropical greenery.</p></div>
+        </button>
+
+        <button type="button" class="island-card">
+          <img src="kamadhoo.jpg" alt="Aerial view of Kamadhoo island" loading="lazy">
+          <div class="card-content"><span class="badge">Local life · Lagoon</span><h3>Kamadhoo</h3><p>Small-island atmosphere with beach, reef and community life.</p></div>
+        </button>
+
+        <button type="button" class="island-card">
+          <img src="kendhoo.jpg" alt="Aerial view of Kendhoo island" loading="lazy">
+          <div class="card-content"><span class="badge">Heritage · Healing · Reef</span><h3>Kendhoo</h3><p>Explore a historic community known for island heritage and traditional medicine.</p></div>
+        </button>
+
+        <button type="button" class="island-card">
+          <img src="kihaadhoo.jpg" alt="View of Kihaadhoo island" loading="lazy">
+          <div class="card-content"><span class="badge">Thatch craft · Reef · Beach</span><h3>Kihaadhoo</h3><p>A green local island with a house reef, quiet beach and craft traditions.</p></div>
+        </button>
+
+        <button type="button" class="island-card">
+          <img src="kudarikilu.jpg" alt="Aerial view of Kudarikilu island" loading="lazy">
+          <div class="card-content"><span class="badge">Fasdūtherē · Reef · Community</span><h3>Kudarikilu</h3><p>A compact island community set within the distinctive Fasdūtherē atoll.</p></div>
+        </button>
+
+        <button type="button" class="island-card">
+          <img src="maalhos.jpg" alt="Aerial view of Maalhos island" loading="lazy">
+          <div class="card-content"><span class="badge">Quiet · Reef · Beach</span><h3>Maalhos</h3><p>A slower local-island escape wrapped by lagoon and reef.</p></div>
+        </button>
+
+        <button type="button" class="island-card">
+          <img src="thulhaadhoo.jpg" alt="Aerial view of Thulhaadhoo island" loading="lazy">
+          <div class="card-content"><span class="badge">Lacquer craft · Island culture</span><h3>Thulhaadhoo</h3><p>Meet a lively island community celebrated for traditional lacquer craftsmanship.</p></div>
+        </button>
+        </div>
+        <button type="button" class="carousel-btn carousel-next" aria-label="Show next islands">→</button>
+      </div>
+      <div class="all-islands" aria-label="All inhabited Baa Atoll islands">
+        <button type="button" class="pill active">Dharavandhoo</button>
+        <button type="button" class="pill">Dhonfanu</button>
+        <button type="button" class="pill">Eydhafushi</button>
+        <button type="button" class="pill">Fehendhoo</button>
+        <button type="button" class="pill">Fulhadhoo</button>
+        <button type="button" class="pill">Goidhoo</button>
+        <button type="button" class="pill">Hithaadhoo</button>
+        <button type="button" class="pill">Kamadhoo</button>
+        <button type="button" class="pill">Kendhoo</button>
+        <button type="button" class="pill">Kihaadhoo</button>
+        <button type="button" class="pill">Kudarikilu</button>
+        <button type="button" class="pill">Maalhos</button>
+        <button type="button" class="pill">Thulhaadhoo</button>
+      </div>
+    </div></section>
+
+    <!-- ===================================================
+         5. MARKETPLACE: STAY, EXPERIENCE, AND MOVE
+         =================================================== -->
+    <section class="market" id="market"><div class="wrap">
+      <div class="section-head"><div><span class="eyebrow" style="color:var(--sea)">Everything in one place</span><h2>Stay local. Move easily. Experience more.</h2></div><a class="link" href="register.html">Are you a local operator? →</a></div>
+      <div class="market-grid">
+        <article class="market-card"><div class="bigico">🏠</div><h3>Stay</h3><p>Browse approved guesthouses and small hotels by island, with the details travelers actually need.</p><a href="listings.html?category=accommodation">Explore stays →</a></article>
+        <article class="market-card"><div class="bigico">🤿</div><h3>Experience</h3><p>Find approved diving, snorkeling, fishing, conservation and local excursions with real availability.</p><a href="listings.html">See experiences →</a></article>
+        <article class="market-card"><div class="bigico">🚤</div><h3>Move</h3><p>Browse local transfer services and make sense of island-to-island connections.</p><a href="listings.html?category=transfer">Find transfers →</a></article>
+      </div>
+    </div></section>
+
+    <!-- ===================================================
+         6. TODAY'S EXPERIENCES AND DAY PLANNER
+         =================================================== -->
+    <section id="today"><div class="wrap today-wrap">
+      <div class="today-photo"><img src="https://commons.wikimedia.org/wiki/Special:Redirect/file/Dharavandhoo%20Thila%20-%20Manata%20Black%20Pearl.JPG" alt="Reef manta ray at Dharavandhoo Thila" loading="lazy"><div class="photo-chip"><div><strong>Baa Atoll</strong><small>Approved live schedules</small></div><a href="listings.html"><b>Browse all ↗</b></a></div></div>
+      <div class="today-copy"><span class="eyebrow" style="color:var(--sea)">What can I do today?</span><h2>Turn free time into an island experience.</h2><p>See administrator-approved activities with real schedules and remaining capacity, then send an enquiry directly to the operator.</p>
+        <div class="date-tabs"><button class="date-tab active" data-range="today">Today</button><button class="date-tab" data-range="tomorrow">Tomorrow</button><button class="date-tab" data-range="week">This week</button></div>
+        <div id="activities">
+          <div class="activity"><time>—</time><div><strong>Loading approved schedules</strong><small>Connecting to Baa Local listings…</small></div><span class="spaces">Please wait</span></div>
+        </div>
+        <small id="activitiesNote" style="display:block;margin-top:13px;color:var(--muted)">Only published listings from verified businesses are shown.</small>
+      </div>
+    </div></section>
+
+    <!-- ===================================================
+         7. ISLAND ROUTE PLANNER
+         =================================================== -->
+    <section class="route" id="routes"><div class="wrap">
+      <div class="section-head"><div><span class="eyebrow" style="color:var(--aqua)">Getting around</span><h2>Island hopping without the guesswork.</h2></div><p>The finished platform can bring public and commercial connections into one understandable journey — especially useful when a trip involves Dharavandhoo Airport plus an onward boat.</p></div>
+      <form class="routebox" id="routeForm">
+        <div class="field"><label>From</label><select><option>Dharavandhoo</option><option>Eydhafushi</option><option>Maalhos</option><option>Kamadhoo</option></select></div><button type="button" class="swap">⇄</button>
+        <div class="field"><label>To</label><select><option>Maalhos</option><option>Kamadhoo</option><option>Eydhafushi</option><option>Dharavandhoo</option></select></div>
+        <div class="field"><label>Date</label><input type="date"></div><button class="routebtn">Find route →</button>
+      </form><div class="route-note">Route search is a prototype interaction. Published schedules should later be verified directly with transport providers.</div>
+    </div></section>
+
+    <!-- ===================================================
+         8. BAA ATOLL STORY AND STATISTICS
+         =================================================== -->
+    <section><div class="wrap story">
+      <div class="story-media"><img src="https://commons.wikimedia.org/wiki/Special:Redirect/file/Dharavandhoo%20Thila%20-%20Whale%20Shark.jpg" alt="Whale shark near Dharavandhoo Thila" loading="lazy"><img src="https://commons.wikimedia.org/wiki/Special:Redirect/file/Baa%20Atoll%20Maldives.JPG" alt="Baa Atoll seascape" loading="lazy"></div>
+      <div class="story-copy"><span class="eyebrow" style="color:var(--sea)">A remarkable place</span><h2>A travel hub shaped around the atoll itself.</h2><p>Baa Atoll is a UNESCO Biosphere Reserve in the central-western Maldives. UNESCO describes it as supporting one of the largest groups of coral reefs in the Indian Ocean. The platform can celebrate that natural identity while keeping local businesses and island communities at the center of the visitor journey.</p>
+        <div class="stats"><div class="stat"><strong>13</strong><span>inhabited islands in Baa Atoll</span></div><div class="stat"><strong>UNESCO</strong><span>Biosphere Reserve</span></div></div>
+      </div>
+    </div></section>
+
+    <!-- ===================================================
+         9. LOCAL BUSINESS CALL-TO-ACTION
+         =================================================== -->
+    <section class="business" id="business"><div class="wrap"><div class="business-card">
+      <div class="business-copy"><span class="eyebrow" style="color:var(--sea)">For local operators</span><h2>Your island business deserves a better front door.</h2><p>Guesthouses, dive centres, excursion operators and transfer providers can apply, manage listings and availability, and respond to booking enquiries from one secure dashboard.</p><a href="register.html" class="btn">Register interest →</a></div>
+      <div class="business-art"><div class="mockphone"><b>Business dashboard</b><div class="mini"><small>Enquiries</small><br><strong>Manage guest requests</strong><div class="dotrow"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div></div><div class="mini"><small>Availability</small><br><strong>Set schedules &amp; spaces</strong></div><div class="mini"><small>Listings</small><br><strong>Submit for approval →</strong></div></div></div>
+    </div></div></section>
+  </main>
+
+  <!-- =====================================================
+       10. SITE FOOTER
+       ===================================================== -->
+
+  <footer><div class="wrap"><div class="footer-grid"><div class="footer-about"><div class="brand"><span class="brand-mark"></span> Baa Local</div><p>A direct local-island tourism and excursion hub focused on Baa Atoll, Maldives.</p></div><div class="footer-col"><b>Explore</b><a href="#islands">Islands</a><a href="listings.html?category=accommodation">Stays</a><a href="listings.html">Experiences</a><a href="listings.html?category=transfer">Transfers</a></div><div class="footer-col"><b>Plan</b><a href="listings.html">Browse listings</a><a href="#today">Today in Baa</a><a href="#routes">Travel guide</a></div><div class="footer-col"><b>Partners</b><a href="register.html">List your business</a><a href="login.html">Operator portal</a></div></div>
+    <div class="credits"><strong>Prototype & image credits:</strong> Information on Baa Atoll's UNESCO Biosphere Reserve is based on UNESCO's Man and the Biosphere Programme. Island list is based on published Baa Atoll references. Prototype imagery links to online sources including Wikimedia Commons, WhereIsMaldives, Island Spa Retreats, Silver Bay Kamadhoo, Maldives Online Guide, IM Maldives, Huraa Island, Maldives Virtual Tour, Maldives Stays and Let's Travel More; images remain the property of their respective creators/licensors. Before commercial launch, replace non-open imagery with owned or explicitly licensed assets and verify all business, transport, price and availability data.</div>
+  </div></footer>
+
+  <!-- =====================================================
+       11. MOBILE NAVIGATION AND TOAST NOTIFICATION
+       ===================================================== -->
+
+  <nav class="bottom-nav" aria-label="Mobile navigation"><a href="#islands">⌖<span>Explore</span></a><a href="listings.html?category=accommodation">⌂<span>Stay</span></a><a href="#today">◉<span>Do</span></a><a href="listings.html?category=transfer">⇄<span>Move</span></a><a href="register.html">＋<span>List</span></a></nav>
+  <div class="notice" id="notice">Prototype interaction — live data comes next.</div>
+  <!-- =====================================================
+       12. PAGE INTERACTIONS
+       ===================================================== -->
+  <script>
+    // Toast notification helper
+    const notice = document.getElementById('notice');
+
+    function toast(message) {
+      notice.textContent = message;
+      notice.classList.add('show');
+      setTimeout(() => notice.classList.remove('show'), 2600);
+    }
+
+    // Hero island search
+    document.getElementById('heroSearch').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const island = document.getElementById('islandSelect').value;
+      window.location.href = `listings.html?island=${encodeURIComponent(island)}`;
+    });
+
+    // Route planner form
+    document.getElementById('routeForm').addEventListener('submit', (event) => {
+      event.preventDefault();
+      toast('Route search is ready for real transport schedules to be connected.');
+    });
+
+    // Swipeable island carousel controls
+    const islandCarousel = document.getElementById('islandCarousel');
+    const previousIslandButton = document.querySelector('.carousel-prev');
+    const nextIslandButton = document.querySelector('.carousel-next');
+    const islandCards = [...islandCarousel.querySelectorAll('.island-card')];
+    const islandPills = [...document.querySelectorAll('.pill')];
+
+    function setActiveIslandPill(index) {
+      islandPills.forEach((pill, pillIndex) => {
+        pill.classList.toggle('active', pillIndex === index);
+      });
+    }
+
+    function scrollIslandCarousel(direction) {
+      const firstCard = islandCarousel.querySelector('.island-card');
+      const gap = parseFloat(getComputedStyle(islandCarousel).columnGap) || 20;
+      islandCarousel.scrollBy({
+        left: direction * (firstCard.offsetWidth + gap),
+        behavior: 'smooth'
+      });
+    }
+
+    previousIslandButton.addEventListener('click', () => scrollIslandCarousel(-1));
+    nextIslandButton.addEventListener('click', () => scrollIslandCarousel(1));
+
+    islandCarousel.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        scrollIslandCarousel(event.key === 'ArrowLeft' ? -1 : 1);
+      }
+    });
+
+    // Island name buttons
+    islandPills.forEach((pill, index) => {
+      pill.addEventListener('click', () => {
+        islandCarousel.scrollTo({
+          left: islandCards[index].offsetLeft,
+          behavior: 'smooth'
+        });
+        setActiveIslandPill(index);
+      });
+    });
+
+    islandCarousel.addEventListener('scroll', () => {
+      const cardWidth = islandCards[0].offsetWidth;
+      const gap = parseFloat(getComputedStyle(islandCarousel).columnGap) || 20;
+      const activeIndex = Math.min(
+        islandCards.length - 1,
+        Math.max(0, Math.round(islandCarousel.scrollLeft / (cardWidth + gap)))
+      );
+      setActiveIslandPill(activeIndex);
+    });
+
+    // Island card interactions
+    document.querySelectorAll('.island-card').forEach((card) => {
+      card.addEventListener('click', () => {
+        window.location.href = `listings.html?island=${encodeURIComponent(card.querySelector('h3').textContent)}`;
+      });
+    });
+  </script>
+  <script src="config.js"></script>
+  <script type="module" src="assets/js/home.js"></script>
+</body>
+</html>
