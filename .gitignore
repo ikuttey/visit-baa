@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+config.js
+node_modules/
+test-artifacts/
+dist/
+.vercel/
+.wrangler/
+supabase/.temp/
+
+backup-before-supabase-*/
+
+index (1).html

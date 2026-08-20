@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Administrator dashboard — Baa Local</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header"><div class="app-header-inner"><a href="index (1).html" class="brand"><span class="brand-mark"></span>Baa Local Admin</a><nav class="app-nav"><a href="listings.html">Public listings</a><a href="index (1).html">Visit website</a><button id="logoutButton" class="text-button" type="button">Log out</button></nav></div></header>
+    <main class="page-wrap">
+      <div class="page-heading"><div><span class="eyebrow">Protected administrator area</span><h1>Reviews and approvals</h1><p>Business and listing decisions made here are recorded in review history and enforced by database authorization.</p></div></div>
+      <div id="configMessage" hidden></div><div id="adminMessage" role="status" aria-live="polite" hidden></div>
+      <section class="summary-grid" aria-label="Review summary">
+        <article class="summary-card"><strong id="pendingBusinessesCount">—</strong><span>Pending businesses</span></article>
+        <article class="summary-card"><strong id="verifiedBusinessesCount">—</strong><span>Verified businesses</span></article>
+        <article class="summary-card"><strong id="pendingListingsCount">—</strong><span>Pending listings</span></article>
+        <article class="summary-card"><strong id="publishedListingsCount">—</strong><span>Published listings</span></article>
+        <article class="summary-card"><strong id="operatorCount">—</strong><span>Operator accounts</span></article>
+      </section>
+      <div class="tabs" role="tablist"><button class="tab active" type="button" data-tab="businessReviews">Business reviews</button><button class="tab" type="button" data-tab="listingReviews">Listing reviews</button><button class="tab" type="button" data-tab="allBusinesses">All businesses</button><button class="tab" type="button" data-tab="allListings">All listings</button></div>
+      <section class="tab-panel" data-tab-panel="businessReviews"><div class="panel"><div class="panel-head"><div><h2>Pending business applications</h2><p>Inspect registration details before making a decision.</p></div></div><div id="pendingBusinessesTable"></div></div></section>
+      <section class="tab-panel" data-tab-panel="listingReviews" hidden><div class="panel"><div class="panel-head"><div><h2>Listings awaiting review</h2><p>Publishing is available only when the associated business remains verified.</p></div></div><div id="pendingListingsTable"></div></div></section>
+      <section class="tab-panel" data-tab-panel="allBusinesses" hidden><div class="panel"><div class="panel-head"><div><h2>All operators and businesses</h2><p>Review status, suspend access, or inspect any application.</p></div></div><div id="allBusinessesTable"></div></div></section>
+      <section class="tab-panel" data-tab-panel="allListings" hidden><div class="panel"><div class="panel-head"><div><h2>All listings</h2><p>Review published, paused, rejected, and draft listing records.</p></div></div><div id="allListingsTable"></div></div></section>
+    </main>
+    <footer class="app-footer"><div class="app-footer-inner"><span>Baa Local administrator portal</span><span>Role checked against Supabase user_roles</span></div></footer>
+  </div>
+  <dialog id="inspectionDialog" class="dialog"><div class="dialog-body"><div class="dialog-head"><div><span class="eyebrow">Review details</span><h2 id="inspectionTitle">Application</h2></div><button id="closeInspection" class="icon-button" type="button" aria-label="Close details">×</button></div><div id="inspectionBody"></div></div></dialog>
+  <script src="config.js"></script><script type="module" src="assets/js/admin-dashboard.js"></script>
+</body>
+</html>

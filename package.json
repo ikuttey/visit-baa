@@ -1,0 +1,17 @@
+{
+  "name": "visit-baa",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npx --yes serve@14.2.6 . -l 3000 --no-clipboard --config serve.json",
+    "config": "node scripts/generate-config.mjs",
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/static-checks.mjs",
+    "test:browser:public": "node scripts/test-public-browser.mjs",
+    "test": "node scripts/test-listing-submission.mjs && node scripts/test-listing-workflow.mjs && node scripts/static-checks.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

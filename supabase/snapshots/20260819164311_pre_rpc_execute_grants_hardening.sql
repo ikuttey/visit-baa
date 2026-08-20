@@ -1,0 +1,15 @@
+-- Pre-change grant snapshot captured from project hwllwtnqehtsoiwzkskk on
+-- 2026-08-19. This is an audit reference, not an ordered migration.
+--
+-- public.submit_listing(uuid)
+--   SECURITY INVOKER; EXECUTE: PUBLIC, authenticated, postgres, service_role
+-- public.submit_business(uuid)
+--   SECURITY DEFINER; EXECUTE: PUBLIC, authenticated, postgres, service_role
+-- public.admin_review_business(uuid, public.business_status, text)
+--   SECURITY DEFINER; EXECUTE: PUBLIC, authenticated, postgres, service_role
+-- public.admin_review_listing(uuid, public.listing_status, text)
+--   SECURITY DEFINER; EXECUTE: PUBLIC, authenticated, postgres, service_role
+--
+-- Function bodies, listing workflow/ownership helpers, and listing triggers
+-- are preserved in 202608170006_pre_listing_revision_workflow.sql. This
+-- migration changes grants only.

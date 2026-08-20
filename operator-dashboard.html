@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Operator dashboard — Baa Local</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header"><div class="app-header-inner"><a href="index (1).html" class="brand"><span class="brand-mark"></span>Baa Local</a><nav class="app-nav" aria-label="Dashboard navigation"><a href="listings.html">Public listings</a><a href="index (1).html">Visit website</a><button type="button" class="text-button" id="logoutButton">Log out</button></nav></div></header>
+    <main class="page-wrap">
+      <div class="page-heading"><div><span class="eyebrow">Private operator area</span><h1>Business dashboard</h1><p id="welcomeText">Loading your operator account…</p></div><div id="businessStatus"></div></div>
+      <div id="configMessage" hidden></div><div id="dashboardMessage" role="status" aria-live="polite" hidden></div>
+
+      <section class="summary-grid" aria-label="Business summary">
+        <article class="summary-card"><strong id="newEnquiriesCount">—</strong><span>New enquiries</span></article>
+        <article class="summary-card"><strong id="upcomingBookingsCount">—</strong><span>Upcoming bookings</span></article>
+        <article class="summary-card"><strong id="activeListingsCount">—</strong><span>Active listings</span></article>
+        <article class="summary-card"><strong id="pendingListingsCount">—</strong><span>Listings pending review</span></article>
+        <article class="summary-card"><strong id="availableSpacesCount">—</strong><span>Available spaces</span></article>
+      </section>
+
+      <div class="tabs" role="tablist" aria-label="Dashboard sections">
+        <button class="tab active" type="button" data-tab="business">Business profile</button>
+        <button class="tab" type="button" data-tab="listings">Listings</button>
+        <button class="tab" type="button" data-tab="availability">Availability</button>
+        <button class="tab" type="button" data-tab="enquiries">Enquiries</button>
+      </div>
+
+      <section class="tab-panel" data-tab-panel="business">
+        <div class="panel"><div class="panel-head"><div><h2 id="businessPanelTitle">Business information</h2><p id="businessPanelDescription">Keep your public and verification information accurate.</p></div></div>
+          <div id="businessReviewNote" hidden></div>
+          <form id="businessForm">
+            <div class="form-grid">
+              <div class="field"><label for="contactPersonName">Contact person</label><input id="contactPersonName" required maxlength="120"></div>
+              <div class="field"><label for="businessName">Business name</label><input id="businessName" required maxlength="180"></div>
+              <div class="field"><label for="registrationNumber">Registration number</label><input id="registrationNumber" required maxlength="80"></div>
+              <div class="field"><label for="operatorCategory">Operator category</label><select id="operatorCategory" required>
+                <option value="guesthouse_hotel">Guesthouse or hotel</option><option value="dive_centre">Dive centre</option><option value="snorkelling_excursion">Snorkelling or excursion provider</option><option value="fishing_operator">Fishing operator</option><option value="watersports_provider">Watersports provider</option><option value="restaurant_cafe">Restaurant or café</option><option value="speedboat_transfer">Speedboat or transfer provider</option><option value="conservation_community">Conservation or community experience</option><option value="other_tourism_service">Other tourism service</option>
+              </select></div>
+              <div class="field"><label for="businessIsland">Island</label><select id="businessIsland" required>
+                <option>Dharavandhoo</option><option>Dhonfanu</option><option>Eydhafushi</option><option>Fehendhoo</option><option>Fulhadhoo</option><option>Goidhoo</option><option>Hithaadhoo</option><option>Kamadhoo</option><option>Kendhoo</option><option>Kihaadhoo</option><option>Kudarikilu</option><option>Maalhos</option><option>Thulhaadhoo</option>
+              </select></div>
+              <div class="field"><label for="businessEmail">Business email</label><input id="businessEmail" type="email" required maxlength="254"></div>
+              <div class="field"><label for="businessPhone">Phone or WhatsApp</label><input id="businessPhone" required maxlength="50"></div>
+              <div class="field"><label for="websiteUrl">Website or social link</label><input id="websiteUrl" type="url" maxlength="500"></div>
+              <div class="field full"><label for="businessAddress">Business address</label><textarea id="businessAddress" required maxlength="1000"></textarea></div>
+              <div class="field full"><label for="businessDescription">Business description</label><textarea id="businessDescription" required minlength="20" maxlength="1500"></textarea></div>
+              <div class="field"><label for="businessLogo">Upload or replace logo</label><input id="businessLogo" type="file" accept="image/jpeg,image/png,image/webp"><small>JPG, PNG, or WebP; maximum 5 MB.</small></div>
+              <div class="field"><label for="businessGallery">Add business photographs</label><input id="businessGallery" type="file" accept="image/jpeg,image/png,image/webp" multiple></div>
+              <div class="field full"><label class="checkbox"><input id="publicContact" type="checkbox"><span>Allow approved public listings to show business contact details.</span></label></div>
+              <div id="businessRegistrationAgreements" class="field full" hidden>
+                <label class="checkbox"><input id="businessAccuracyConfirmed" type="checkbox"><span>I confirm that the business and contact information supplied is accurate.</span></label>
+                <label class="checkbox" style="margin-top:12px"><input id="businessTermsAccepted" type="checkbox"><span>I agree to the Baa Local platform terms and listing rules.</span></label>
+              </div>
+              <div id="businessImagePreviews" class="preview-grid field full"></div>
+            </div>
+            <div class="form-actions"><button class="button aqua" type="submit">Save business profile</button><button class="button secondary" id="resubmitBusinessButton" type="button" hidden>Resubmit for review</button></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-tab-panel="listings" hidden>
+        <div class="panel"><div class="panel-head"><div><h2>Your services and listings</h2><p>Add multiple services under this verified business, then submit each one for administrator review.</p></div><button id="newListingButton" class="button aqua" type="button" disabled>Add service or listing</button></div><div id="listingPermissionMessage" hidden></div><div id="listingsTable"></div></div>
+        <div class="panel" id="listingEditor" hidden><div class="panel-head"><div><h2 id="listingEditorTitle">Add service or listing</h2><p>Complete the details travellers need before submitting for review.</p></div><button type="button" id="closeListingEditor" class="icon-button" aria-label="Close listing editor">×</button></div>
+          <div id="listingEditorWarning" role="status" aria-live="polite" hidden></div>
+          <form id="listingForm">
+            <input id="listingId" type="hidden">
+            <div class="form-grid three">
+              <div class="field full"><label for="listingTitle">Listing title</label><input id="listingTitle" required maxlength="180"></div>
+              <div class="field"><label for="listingCategory">Category</label><select id="listingCategory" required>
+                <option value="accommodation">Accommodation</option><option value="excursion">Excursion</option><option value="diving">Diving</option><option value="snorkelling">Snorkelling</option><option value="fishing">Fishing</option><option value="watersports">Watersports</option><option value="food_dining">Food and dining</option><option value="transfer">Transfer</option><option value="conservation_experience">Conservation experience</option><option value="community_experience">Community experience</option><option value="other">Other</option>
+              </select></div>
+              <div class="field"><label for="listingIsland">Island</label><select id="listingIsland" required>
+                <option>Dharavandhoo</option><option>Dhonfanu</option><option>Eydhafushi</option><option>Fehendhoo</option><option>Fulhadhoo</option><option>Goidhoo</option><option>Hithaadhoo</option><option>Kamadhoo</option><option>Kendhoo</option><option>Kihaadhoo</option><option>Kudarikilu</option><option>Maalhos</option><option>Thulhaadhoo</option>
+              </select></div>
+              <div class="field"><label for="listingPrice">Price</label><input id="listingPrice" type="number" min="0" step="0.01" required></div>
+              <div class="field"><label for="listingCurrency">Currency</label><select id="listingCurrency"><option>USD</option><option>MVR</option></select></div>
+              <div class="field"><label for="listingPriceUnit">Price unit</label><select id="listingPriceUnit"><option value="per_person">Per person</option><option value="per_room">Per room</option><option value="per_night">Per night</option><option value="per_trip">Per trip</option><option value="per_hour">Per hour</option><option value="fixed">Fixed</option></select></div>
+              <div class="field"><label for="listingStartTime">Starting time</label><input id="listingStartTime" type="time"></div>
+              <div class="field"><label for="listingEndTime">Ending time</label><input id="listingEndTime" type="time"></div>
+              <div class="field"><label for="listingMaxCapacity">Maximum capacity</label><input id="listingMaxCapacity" type="number" min="1" required></div>
+              <div class="field"><label for="listingAvailableSpaces">Available spaces</label><input id="listingAvailableSpaces" type="number" min="0" required></div>
+              <div class="field full"><label for="listingSummary">Short summary</label><textarea id="listingSummary" minlength="10" maxlength="300" required></textarea></div>
+              <div class="field full"><label for="listingDescription">Full description</label><textarea id="listingDescription" minlength="30" maxlength="5000" required></textarea></div>
+              <div class="field"><label for="includedItems">Included items</label><input id="includedItems" placeholder="Equipment, water, guide"><small>Separate items with commas.</small></div>
+              <div class="field"><label for="excludedItems">Excluded items</label><input id="excludedItems" placeholder="Meals, transfers"><small>Separate items with commas.</small></div>
+              <div class="field"><label for="meetingPoint">Meeting point</label><input id="meetingPoint" maxlength="500"></div>
+              <div class="field full"><label for="requirements">Requirements</label><textarea id="requirements" maxlength="2000"></textarea></div>
+              <div class="field full"><label for="cancellationInformation">Cancellation information</label><textarea id="cancellationInformation" maxlength="2000"></textarea></div>
+              <div class="field"><label for="listingCover">Cover image</label><input id="listingCover" type="file" accept="image/jpeg,image/png,image/webp"><small>Required. JPG, PNG, or WebP; maximum 5 MB.</small></div>
+              <div class="field"><label for="listingGallery">Add gallery images</label><input id="listingGallery" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>Optional. Add captions and arrange the order below.</small></div>
+            </div>
+            <fieldset id="accommodationFields" class="panel" style="margin-top:22px"><legend class="fieldset-title">Accommodation details</legend><div class="form-grid three">
+              <div class="field"><label for="propertyType">Property type</label><input id="propertyType" maxlength="100"></div><div class="field"><label for="roomType">Room type</label><input id="roomType" maxlength="100"></div><div class="field"><label for="maximumGuests">Maximum guests</label><input id="maximumGuests" type="number" min="1"></div><div class="field"><label for="numberOfRooms">Number of rooms</label><input id="numberOfRooms" type="number" min="1"></div><div class="field"><label for="checkInTime">Check-in time</label><input id="checkInTime" type="time"></div><div class="field"><label for="checkOutTime">Check-out time</label><input id="checkOutTime" type="time"></div><div class="field"><label for="pricePerNight">Price per night</label><input id="pricePerNight" type="number" min="0" step="0.01"></div><div class="field full"><label for="amenities">Amenities</label><input id="amenities" placeholder="Wi-Fi, breakfast, air conditioning"><small>Separate items with commas.</small></div>
+            </div></fieldset>
+            <div id="listingMediaEditor" class="media-editor" style="margin-top:18px"></div>
+            <div class="form-actions"><button class="button aqua" type="submit" disabled>Save draft</button><button class="button secondary" id="cancelListingButton" type="button">Cancel</button></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-tab-panel="availability" hidden>
+        <div class="panel"><div class="panel-head"><div><h2>Schedules and availability</h2><p>Add date-based capacity or block dates that cannot be booked.</p></div></div>
+          <form id="availabilityForm"><input id="availabilityId" type="hidden"><div class="form-grid three"><div class="field"><label for="availabilityListing">Listing</label><select id="availabilityListing" required></select></div><div class="field"><label for="availableDate">Date</label><input id="availableDate" type="date" required></div><div class="field"><label for="availabilityStartTime">Start time</label><input id="availabilityStartTime" type="time"></div><div class="field"><label for="availabilityEndTime">End time</label><input id="availabilityEndTime" type="time"></div><div class="field"><label for="availabilityCapacity">Maximum capacity</label><input id="availabilityCapacity" type="number" min="1" required></div><div class="field"><label for="remainingSpaces">Remaining spaces</label><input id="remainingSpaces" type="number" min="0" required></div><label class="checkbox field full"><input id="isBlocked" type="checkbox"><span>Block this date or time (remaining spaces will be set to zero).</span></label></div><div class="form-actions"><button class="button aqua" type="submit">Save availability</button><button class="button secondary" id="clearAvailabilityButton" type="button">Clear</button></div></form>
+        </div>
+        <div class="panel"><div class="panel-head"><div><h2>Upcoming availability</h2><p>A clear date-based view of your future schedules.</p></div></div><div id="availabilityTable"></div></div>
+      </section>
+
+      <section class="tab-panel" data-tab-panel="enquiries" hidden>
+        <div class="panel"><div class="panel-head"><div><h2>Booking enquiries</h2><p>An enquiry is not confirmed until you accept it.</p></div></div><div id="enquiriesTable"></div></div>
+      </section>
+    </main>
+    <footer class="app-footer"><div class="app-footer-inner"><span>Baa Local operator portal</span><span>Approval and ownership enforced in Supabase</span></div></footer>
+  </div>
+  <script src="config.js"></script><script type="module" src="assets/js/operator-dashboard.js"></script>
+</body>
+</html>

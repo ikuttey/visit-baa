@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Register your business — Baa Local</title>
+  <meta name="description" content="Apply to list a Baa Atoll tourism business on Baa Local.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body class="auth-page">
+  <main class="auth-layout">
+    <section class="auth-story" aria-labelledby="register-story-title">
+      <a href="index (1).html" class="brand"><span class="brand-mark"></span>Baa Local</a>
+      <div>
+        <span class="eyebrow" style="color:var(--aqua)">For local operators</span>
+        <h1 id="register-story-title">Put your island business in front of the right travelers.</h1>
+        <p>Apply once, complete your profile, and manage approved listings, availability, and enquiries from one private dashboard.</p>
+      </div>
+      <small>Every new business starts as Pending review. Registration does not create an automatically verified operator.</small>
+    </section>
+
+    <section class="auth-panel">
+      <div class="auth-card">
+        <span class="eyebrow">Business application</span>
+        <h2>Create an operator account</h2>
+        <p>Use accurate registration information. A Baa Local administrator will review the application before listings can be submitted.</p>
+        <div id="configMessage" hidden></div>
+        <div id="formMessage" role="status" aria-live="polite" hidden></div>
+
+        <form id="registrationForm">
+          <div class="form-grid">
+            <div class="field"><label for="fullName">Contact person’s full name</label><input id="fullName" name="fullName" autocomplete="name" minlength="2" maxlength="120" required></div>
+            <div class="field"><label for="businessName">Business name</label><input id="businessName" name="businessName" maxlength="180" required></div>
+            <div class="field"><label for="registrationNumber">Business registration number</label><input id="registrationNumber" name="registrationNumber" maxlength="80" required></div>
+            <div class="field"><label for="operatorCategory">Operator category</label><select id="operatorCategory" name="operatorCategory" required>
+              <option value="">Choose a category</option>
+              <option value="guesthouse_hotel">Guesthouse or hotel</option>
+              <option value="dive_centre">Dive centre</option>
+              <option value="snorkelling_excursion">Snorkelling or excursion provider</option>
+              <option value="fishing_operator">Fishing operator</option>
+              <option value="watersports_provider">Watersports provider</option>
+              <option value="restaurant_cafe">Restaurant or café</option>
+              <option value="speedboat_transfer">Speedboat or transfer provider</option>
+              <option value="conservation_community">Conservation or community experience</option>
+              <option value="other_tourism_service">Other tourism service</option>
+            </select></div>
+            <div class="field"><label for="island">Island</label><select id="island" name="island" required>
+              <option value="">Choose an island</option>
+              <option>Dharavandhoo</option><option>Dhonfanu</option><option>Eydhafushi</option><option>Fehendhoo</option><option>Fulhadhoo</option><option>Goidhoo</option><option>Hithaadhoo</option><option>Kamadhoo</option><option>Kendhoo</option><option>Kihaadhoo</option><option>Kudarikilu</option><option>Maalhos</option><option>Thulhaadhoo</option>
+            </select></div>
+            <div class="field"><label for="phone">Phone or WhatsApp</label><input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="50" required></div>
+            <div class="field"><label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="email" maxlength="254" required></div>
+            <div class="field"><label for="websiteUrl">Website or social-media link</label><input id="websiteUrl" name="websiteUrl" type="url" inputmode="url" placeholder="https://" maxlength="500"></div>
+            <div class="field full"><label for="businessAddress">Business address</label><textarea id="businessAddress" name="businessAddress" maxlength="1000" required></textarea></div>
+            <div class="field full"><label for="description">Short business description</label><textarea id="description" name="description" minlength="20" maxlength="1500" required></textarea></div>
+            <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="10" required><small>Use at least 10 characters.</small></div>
+            <div class="field"><label for="confirmPassword">Confirm password</label><input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" minlength="10" required></div>
+            <div class="field"><label for="businessLogo">Business logo</label><input id="businessLogo" name="businessLogo" type="file" accept="image/jpeg,image/png,image/webp"><small>JPG, PNG, or WebP. Maximum 5 MB.</small></div>
+            <div class="field"><label for="businessImages">Supporting business images</label><input id="businessImages" name="businessImages" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>Each image must be 5 MB or smaller.</small></div>
+            <div id="imagePreviews" class="preview-grid field full" aria-label="Selected image previews"></div>
+            <label class="checkbox field full"><input id="accuracyConfirmed" type="checkbox" required><span>I confirm that the business and contact information supplied is accurate.</span></label>
+            <label class="checkbox field full"><input id="termsAccepted" type="checkbox" required><span>I agree to the Baa Local platform terms and listing rules.</span></label>
+          </div>
+          <div class="form-actions"><button class="button aqua" type="submit">Submit application</button></div>
+        </form>
+
+        <div class="auth-links"><a href="login.html">Already registered? Log in</a><a href="index (1).html">Return to Baa Local</a></div>
+      </div>
+    </section>
+  </main>
+  <script src="config.js"></script>
+  <script type="module" src="assets/js/register.js"></script>
+</body>
+</html>
+
