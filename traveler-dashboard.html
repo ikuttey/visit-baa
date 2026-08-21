@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>My Baa Trip — Visit Baa</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <link rel="stylesheet" href="assets/css/manta-planner.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="app-header-inner">
+          <a href="index (1).html" class="brand"
+            ><span class="brand-mark"></span>Baa Local</a
+          >
+          <nav class="app-nav">
+            <a href="listings.html">Explore</a
+            ><a href="index (1).html">Visit website</a
+            ><button type="button" class="text-button" id="logoutButton">
+              Log out
+            </button>
+          </nav>
+        </div>
+      </header>
+      <main class="page-wrap">
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">Traveler account</span>
+            <h1>My Baa Trip</h1>
+            <p>
+              Manage real booking requests, saved listings, trip plans,
+              messages, and verified reviews.
+            </p>
+          </div>
+        </div>
+        <div id="configMessage" hidden></div>
+        <div id="travelerMessage" role="status" aria-live="polite" hidden></div>
+        <div class="tabs" role="tablist">
+          <button class="tab active" type="button" data-tab="bookings">My bookings</button>
+          <button class="tab" type="button" data-tab="saved">Saved</button>
+          <button class="tab" type="button" data-tab="trip">My Baa Trip</button>
+        </div>
+        <section class="tab-panel" data-tab-panel="bookings">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Booking requests</h2>
+                <p>
+                  Each service is requested from its own operator. Direct
+                  payment references and confirmations stay separate.
+                </p>
+              </div>
+            </div>
+            <div id="travelerBookings"></div>
+          </div>
+        </section>
+        <section class="tab-panel" data-tab-panel="saved" hidden>
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Saved listings</h2>
+                <p>Your shortlist of stays and experiences.</p>
+              </div>
+            </div>
+            <div id="travelerSaved" class="listing-grid"></div>
+          </div>
+        </section>
+        <section class="tab-panel" data-tab-panel="trip" hidden>
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>My Baa Trip itinerary</h2>
+                <p>
+                  Review the route-first draft, then send separate requests to
+                  the selected operators.
+                </p>
+              </div>
+            </div>
+            <div id="travelerTrips"></div>
+          </div>
+        </section>
+      </main>
+      <footer class="app-footer">
+        <div class="app-footer-inner">
+          <span>Visit Baa traveler account</span
+          ><a href="listings.html">Explore listings</a>
+        </div>
+      </footer>
+    </div>
+    <dialog id="paymentReferenceDialog" class="inspection-dialog" aria-labelledby="paymentReferenceTitle">
+      <div class="dialog-head"><div><span class="eyebrow">Direct operator payment</span><h2 id="paymentReferenceTitle">Add payment reference</h2></div><button id="closePaymentReference" class="icon-button" type="button" aria-label="Close payment reference form">×</button></div>
+      <form id="paymentReferenceForm" class="form-grid">
+        <input id="paymentBookingId" type="hidden" />
+        <div class="field"><label for="paymentAmount">Amount (<span id="paymentCurrency">USD</span>)</label><input id="paymentAmount" type="number" min="0.01" step="0.01" required /></div>
+        <div class="field"><label for="paymentDate">Payment date</label><input id="paymentDate" type="date" required /></div>
+        <div class="field"><label for="paymentMethod">Method</label><input id="paymentMethod" type="text" maxlength="80" placeholder="Bank transfer, cash deposit…" required /></div>
+        <div class="field"><label for="paymentReference">Reference / receipt number</label><input id="paymentReference" type="text" maxlength="180" required /></div>
+        <div class="field full"><label for="paymentProof">Proof (optional, 5 MB max)</label><input id="paymentProof" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" /></div>
+        <div class="field full"><label for="paymentNote">Note to operator (optional)</label><textarea id="paymentNote" maxlength="1000"></textarea></div>
+        <p class="message warning full">This records a reference for money you paid directly to the operator. Visit Baa does not collect or hold this payment.</p>
+        <div class="form-actions full"><button class="button aqua" type="submit">Submit to operator</button></div>
+      </form>
+    </dialog>
+    <script src="config.js"></script>
+    <script type="module" src="assets/js/traveler-dashboard.js"></script>
+    <script type="module" src="assets/js/manta-planner.js"></script>
+  </body>
+</html>

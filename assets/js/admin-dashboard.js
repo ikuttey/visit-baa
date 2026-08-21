@@ -2,8 +2,9 @@ import { requireSupabase, showConfigurationNotice } from './supabase-client.js';
 import { logout, requireAdmin } from './auth.js';
 import { signedImageUrl } from './storage.js';
 import { bindTabs, clear, createElement, displayList, emptyState, formatDate, formatMoney, setBusy, setMessage, statusBadge, statusLabel } from './ui.js';
+import { renderFacilitiesView } from './facilities-ui.js';
 
-const state = { user: null, businesses: [], listings: [], profiles: [], roles: [] };
+const state = { user: null, businesses: [], listings: [], profiles: [], roles: [], reservations: [], reviews: [], paymentReferences: [] };
 const message = document.getElementById('adminMessage');
 const dialog = document.getElementById('inspectionDialog');
 
@@ -25,17 +26,24 @@ async function init() {
 async function loadData() {
   setMessage(message, 'Loading administrator records…', 'loading');
   const client = requireSupabase();
-  const [businessResult, listingResult, profileResult, roleResult] = await Promise.all([
+  const [businessResult, listingResult, profileResult, roleResult, reservationResult, reviewResult, paymentResult] = await Promise.all([
     client.from('businesses').select('*').order('created_at', { ascending: false }),
     client.from('listings').select('*, businesses(id,owner_id,business_name,status,island,category,contact_person_name,email,phone,registration_number)').order('created_at', { ascending: false }),
     client.from('profiles').select('*').order('created_at', { ascending: false }),
-    client.from('user_roles').select('*')
+    client.from('user_roles').select('*'),
+    client.from('booking_enquiries').select('*').order('created_at', { ascending: false }).limit(500),
+    client.from('reviews').select('*').order('created_at', { ascending: false }).limit(500),
+    client.from('payment_references').select('*').order('created_at', { ascending: false }).limit(500)
   ]);
-  for (const result of [businessResult, listingResult, profileResult, roleResult]) if (result.error) throw result.error;
+  for (const result of [businessResult, listingResult, profileResult, roleResult, reservationResult, reviewResult]) if (result.error) throw result.error;
+  if (paymentResult.error && !['PGRST204','PGRST205','42P01','42703'].includes(paymentResult.error.code)) throw paymentResult.error;
   state.businesses = businessResult.data || [];
   state.listings = listingResult.data || [];
   state.profiles = profileResult.data || [];
   state.roles = roleResult.data || [];
+  state.reservations = reservationResult.data || [];
+  state.reviews = reviewResult.data || [];
+  state.paymentReferences = paymentResult.data || [];
   renderAll(); setMessage(message);
 }
 
@@ -46,11 +54,68 @@ function renderAll() {
   renderBusinessTable(document.getElementById('allBusinessesTable'), state.businesses, false);
   renderListingTable(document.getElementById('pendingListingsTable'), pendingListings, true);
   renderListingTable(document.getElementById('allListingsTable'), state.listings, false);
+  renderReservations();
+  renderTravelers();
+  renderReviews();
   document.getElementById('pendingBusinessesCount').textContent = pendingBusinesses.length;
   document.getElementById('verifiedBusinessesCount').textContent = state.businesses.filter((item) => item.status === 'verified').length;
   document.getElementById('pendingListingsCount').textContent = pendingListings.length;
   document.getElementById('publishedListingsCount').textContent = state.listings.filter((item) => item.status === 'published').length;
   document.getElementById('operatorCount').textContent = new Set(state.roles.filter((item) => item.role === 'operator').map((item) => item.user_id)).size;
+}
+
+function listingName(listingId) {
+  return state.listings.find((listing) => listing.id === listingId)?.title || 'Listing';
+}
+
+function renderReservations() {
+  const container = document.getElementById('adminReservationsTable'); clear(container);
+  if (!state.reservations.length) return container.append(emptyState('No reservations', 'Booking requests will appear here when travelers contact operators.'));
+  const body = createElement('tbody');
+  state.reservations.forEach((reservation) => { const refs=state.paymentReferences.filter((item)=>item.booking_id===reservation.id); body.append(createElement('tr', { children: [
+    createElement('td', { children: [createElement('strong', { text: reservation.booking_reference || 'Legacy enquiry' }), createElement('div', { text: reservation.guest_full_name })] }),
+    createElement('td', { text: listingName(reservation.listing_id) }),
+    createElement('td', { text: reservation.check_out_date ? `${formatDate(`${reservation.requested_date}T00:00:00`)} - ${formatDate(`${reservation.check_out_date}T00:00:00`)}` : formatDate(`${reservation.requested_date}T00:00:00`) }),
+    createElement('td', { children:[createElement('div',{text:Number(reservation.quoted_total)>0?formatMoney(reservation.quoted_total,reservation.quote_currency):'Not quoted'}),Number(reservation.deposit_amount)>0?createElement('small',{text:`Deposit ${formatMoney(reservation.deposit_amount,reservation.quote_currency)} · ${statusLabel(reservation.payment_status)}`}):null,...refs.map((item)=>createElement('small',{text:`${item.payment_reference}: ${formatMoney(item.amount,item.currency)} · ${statusLabel(item.status)}`}))] }),
+    createElement('td', { children: [statusBadge(reservation.status)] })
+  ] })); });
+  container.append(tableWrap(['Reference / traveler','Listing','Date','Total','Status'], body));
+}
+
+function renderTravelers() {
+  const container = document.getElementById('adminTravelersTable'); clear(container);
+  const travelerIds = new Set(state.roles.filter((record) => record.role === 'traveler').map((record) => record.user_id));
+  const travelers = state.profiles.filter((profile) => travelerIds.has(profile.id));
+  if (!travelers.length) return container.append(emptyState('No traveler accounts', 'Verified traveler accounts will appear here.'));
+  const body = createElement('tbody');
+  travelers.forEach((profile) => body.append(createElement('tr', { children: [createElement('td', { text: profile.full_name }), createElement('td', { text: profile.phone || 'Not provided' }), createElement('td', { text: formatDate(profile.created_at) }), createElement('td', { text: state.reservations.filter((item) => item.traveler_id === profile.id).length })] })));
+  container.append(tableWrap(['Traveler','Phone','Joined','Booking requests'], body));
+}
+
+function renderReviews() {
+  const container = document.getElementById('adminReviewsTable'); clear(container);
+  if (!state.reviews.length) return container.append(emptyState('No verified reviews', 'Reviews can only be submitted after completed bookings.'));
+  const body = createElement('tbody');
+  state.reviews.forEach((review) => {
+    const actions = createElement('div', { className: 'table-actions' });
+    if (review.status !== 'published') actions.append(button('Publish', () => moderateReview(review.id, 'published'), 'aqua'));
+    if (review.status !== 'removed') actions.append(button('Remove', () => moderateReview(review.id, 'removed'), 'danger'));
+    body.append(createElement('tr', { children: [
+      createElement('td', { children: [createElement('strong', { text: review.display_name }), createElement('div', { text: review.title || review.body.slice(0, 90) })] }),
+      createElement('td', { text: listingName(review.listing_id) }), createElement('td', { text: `${Number(review.overall_rating).toFixed(1)} / 10` }),
+      createElement('td', { children: [statusBadge(review.status)] }), createElement('td', { children: [actions] })
+    ] }));
+  });
+  container.append(tableWrap(['Review','Listing','Score','Status','Moderation'], body));
+}
+
+async function moderateReview(id, status) {
+  const reason = window.prompt(status === 'removed' ? 'Reason for removing this review:' : 'Optional moderation note:', '');
+  if (status === 'removed' && !reason?.trim()) return setMessage(message, 'A moderation reason is required when removing a review.', 'error');
+  const { error } = await requireSupabase().from('reviews').update({ status, moderation_note:reason?.trim() || null }).eq('id', id);
+  if (error) throw error;
+  await loadData();
+  setMessage(message, `Review changed to ${statusLabel(status)}.`, 'success');
 }
 
 function button(text, handler, style = 'secondary') {
@@ -191,6 +256,8 @@ async function inspectListing(listing) {
       ...(galleryResult.data || []).map((item) => ({ bucket: 'listing-gallery', path: item.storage_path, caption: item.caption }))
     ], `${listing.title} listing photo`);
     inspectionBody.replaceChildren(details);
+    const facilities = renderFacilitiesView(listing, { context: 'admin' });
+    if (facilities) inspectionBody.append(facilities);
     if (media.childElementCount) inspectionBody.append(createElement('h3', { text: 'Submitted media' }), media);
     inspectionBody.append(createElement('h3', { text: 'Availability' }));
     const slots = availabilityResult.data || [];

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160" role="img" aria-labelledby="title desc">
+  <title id="title">Manta ray trip planner</title><desc id="desc">A friendly deep-blue manta ray with broad wings, bright spots, big eyes, bubbles, and a long curved tail.</desc>
+  <defs>
+    <linearGradient id="mantaWing" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#176c91"/><stop offset=".48" stop-color="#0b4e77"/><stop offset="1" stop-color="#062b52"/></linearGradient>
+    <linearGradient id="mantaBody" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#0b5276"/><stop offset="1" stop-color="#041e3b"/></linearGradient>
+  </defs>
+  <path fill="url(#mantaWing)" stroke="#032847" stroke-width="2" stroke-linejoin="round" d="M100 31C89 35 81 44 76 55 56 48 32 36 8 39 18 67 42 89 72 101c12 5 22-1 28-12 6 11 16 17 28 12 30-12 54-34 64-62-24-3-48 9-68 16-5-11-13-20-24-24z"/>
+  <path fill="url(#mantaBody)" d="M100 27c-11 10-17 29-14 47 2 12 7 22 14 30 7-8 12-18 14-30 3-18-3-37-14-47z"/>
+  <path fill="#68c7dd" opacity=".8" d="M81 58c-13-2-27-7-41-15 11 12 24 21 39 27zm38 0c13-2 27-7 41-15-11 12-24 21-39 27z"/>
+  <g fill="#85d7e7" opacity=".9"><circle cx="37" cy="50" r="3"/><circle cx="49" cy="61" r="2"/><circle cx="60" cy="55" r="2.5"/><circle cx="151" cy="56" r="2.5"/><circle cx="164" cy="49" r="3"/><circle cx="139" cy="68" r="2"/><circle cx="70" cy="75" r="2"/></g>
+  <g><circle cx="87" cy="51" r="7" fill="#f7feff" stroke="#062b52" stroke-width="2"/><circle cx="113" cy="51" r="7" fill="#f7feff" stroke="#062b52" stroke-width="2"/><circle cx="89" cy="52" r="3.2" fill="#082b43"/><circle cx="111" cy="52" r="3.2" fill="#082b43"/><circle cx="90" cy="50" r="1" fill="#fff"/><circle cx="112" cy="50" r="1" fill="#fff"/></g>
+  <path d="M100 101c0 17 3 31 8 43 3 7 7 11 11 13" fill="none" stroke="#041e3b" stroke-width="4" stroke-linecap="round"/>
+  <g fill="none" stroke="#6ed8ed" stroke-width="2" opacity=".8"><circle cx="139" cy="127" r="4"/><circle cx="151" cy="140" r="2.5"/><circle cx="132" cy="145" r="2"/></g>
+</svg>

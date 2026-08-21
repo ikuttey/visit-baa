@@ -4,6 +4,8 @@ const container = document.getElementById('activities');
 const note = document.getElementById('activitiesNote');
 const tabs = [...document.querySelectorAll('.date-tab[data-range]')];
 const state = { availability: [], listings: new Map(), range: 'today' };
+const travelDate = document.getElementById('travelDate');
+if (travelDate) travelDate.min = localDate(0);
 
 function localDate(offsetDays = 0) {
   const date = new Date();
@@ -87,4 +89,3 @@ async function init() {
 }
 
 init();
-

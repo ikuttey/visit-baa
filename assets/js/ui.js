@@ -82,14 +82,25 @@ export function confirmAction(message) {
 export function bindTabs(root = document) {
   const tabs = [...root.querySelectorAll('[data-tab]')];
   const panels = [...root.querySelectorAll('[data-tab-panel]')];
-  tabs.forEach((tab) => {
-    tab.addEventListener('click', () => {
-      tabs.forEach((item) => item.classList.toggle('active', item === tab));
-      panels.forEach((panel) => {
-        panel.hidden = panel.dataset.tabPanel !== tab.dataset.tab;
-      });
+  const activate = (tab, focus = false) => {
+    tabs.forEach((item) => { const active = item === tab; item.classList.toggle('active', active); item.setAttribute('aria-selected', String(active)); item.tabIndex = active ? 0 : -1; });
+    panels.forEach((panel) => { panel.hidden = panel.dataset.tabPanel !== tab.dataset.tab; });
+    if (focus) tab.focus();
+  };
+  tabs.forEach((tab, index) => {
+    tab.setAttribute('role', 'tab');
+    const panel = panels.find((item) => item.dataset.tabPanel === tab.dataset.tab);
+    if (panel) { panel.setAttribute('role', 'tabpanel'); if (!panel.id) panel.id = `tab-panel-${tab.dataset.tab}`; tab.setAttribute('aria-controls', panel.id); }
+    tab.addEventListener('click', () => activate(tab));
+    tab.addEventListener('keydown', (event) => {
+      if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+      event.preventDefault();
+      const target = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      activate(tabs[target], true);
     });
   });
+  const initial = tabs.find((tab) => tab.classList.contains('active')) || tabs[0];
+  if (initial) activate(initial);
 }
 
 export function previewFiles(input, container) {
@@ -101,4 +112,3 @@ export function previewFiles(input, container) {
     container.append(createElement('div', { className: 'preview', children: [image] }));
   });
 }
-

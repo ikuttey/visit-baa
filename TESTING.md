@@ -21,12 +21,55 @@ second terminal:
 ```powershell
 npm start
 npm run test:browser:public
+npm run test:browser:facilities
+npm run test:browser:marketplace
 ```
 
 This uses isolated Chrome contexts, verifies the anonymous catalogue and public
 business page, checks signed images, exercises the invalid-business state, and
 detects console, network, image, and mobile-overflow failures. It does not
 replace the authenticated operator/administrator workflow below.
+
+The marketplace browser suite checks URL-backed filters and mobile overflow at
+320, 375, 430, 768, and 1280 px. `npm test` also verifies pricing/date helpers,
+new-table RLS declarations, fixed function search paths, participant-only
+messaging, immutable review content, and guarded inventory decrements.
+
+## Dates, directional routes, and manta planner
+
+1. Open the homepage When control. Confirm Stay requires check-in/check-out and sends `category=accommodation`, `checkin`, `checkout`, adults, and rooms to the listing URL.
+2. Switch to Activity and Transfer. Confirm each accepts one date and Transfer sends `category=transfer`.
+3. Create A-to-B and B-to-A transfer listings with different schedules. Confirm each direction is returned only from its own published route record.
+4. Test a direct route, a two-leg connection with at least 45 minutes between legs, a 44-minute invalid connection, a non-operating day, and insufficient passenger capacity.
+5. Pause a transfer listing or its route. Confirm it disappears from both homepage and manta results.
+6. Open the manta on desktop and mobile customer pages. Confirm data loads only after opening, route gaps are explicit, every result links to a real listing, and no operator/admin page includes the widget.
+7. Add a generated plan while signed in and confirm its real listing legs/items appear in My Baa Trip. Repeat signed out and confirm a recoverable local draft is stored.
+8. From a draft, choose **Request these bookings**, review the warning, then choose **Send booking requests**. Confirm each selected item produces one operator-owned booking and retrying the same request key produces no duplicates.
+9. Test pay-later, custom deposit, and full-prepayment listings. Confirm the traveler sees per-operator pay-now/pay-later amounts and aggregate trip totals.
+10. Submit a direct-payment reference with and without proof. Confirm only its operator can read and review it, another operator cannot, and the administrator can monitor it.
+
+## Marketplace search and room inventory
+
+1. Create two room types with different occupancy, prices, photos, and rate plans.
+2. Add nightly inventory for every date in a three-night stay; block one night for one room type.
+3. Search by island, check-in/out, adults, children, and rooms. Confirm only a room available for every night appears.
+4. Refresh and share the URL; confirm every filter reloads correctly.
+5. Test a legacy accommodation without room rows but with all-day availability; it must still appear when the full stay is available.
+6. Test an activity date/session and requested guests. Sold-out or insufficient-capacity sessions must not appear.
+7. Exercise price range, facility filters, price sorting, Load more, and map view.
+
+## Reservations, travelers, reviews, and trips
+
+1. Create and verify a traveler account; operator and admin redirects must remain role-specific.
+2. Send accommodation and activity-session requests. Confirm each reference starts with `VB-` and the returned quote matches stored database prices.
+3. Accept then confirm each request. Confirm room/session inventory is decremented once.
+4. Race two confirmation requests against the final room/session; exactly one must succeed.
+5. Cancel a confirmed traveler booking and verify inventory is restored without exceeding its configured maximum.
+6. Exchange messages in both directions; another traveler and another operator must receive zero rows for the thread.
+7. Save a listing, add it to My Baa Trip, remove it, and verify another traveler cannot read those rows.
+8. Complete a reservation and submit a categorized review. A fake review without a completed reservation must fail.
+9. Post one operator response, report the review, and moderate it as admin. Attempts to change score or text must fail.
+10. Create, deactivate, and delete a date-bound promotion; verify only active/current offers display and the server quote applies the best valid discount.
 
 ## Authentication
 

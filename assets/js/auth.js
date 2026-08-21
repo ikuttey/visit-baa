@@ -45,9 +45,29 @@ export async function requireAdmin() {
   return user;
 }
 
+export async function requireTraveler() {
+  const user = await currentUser();
+  if (!user) {
+    const page = `${window.location.pathname.split('/').pop()}${window.location.search}`;
+    window.location.replace(`login.html?next=${encodeURIComponent(page)}`);
+    throw new Error('Authentication required');
+  }
+  const roles = await userRoles(user.id);
+  if (!roles.includes('traveler')) {
+    window.location.replace(roles.includes('admin') ? 'admin-dashboard.html' : 'operator-dashboard.html');
+    throw new Error('Traveler access required');
+  }
+  return user;
+}
+
 export async function redirectAfterLogin(user) {
   const roles = await userRoles(user.id);
-  window.location.replace(roles.includes('admin') ? 'admin-dashboard.html' : 'operator-dashboard.html');
+  const requested = new URLSearchParams(window.location.search).get('next') || localStorage.getItem('baa_after_auth_path');
+  const next = /^traveler-dashboard\.html(?:\?[-A-Za-z0-9_=&%]*)?$/.test(requested || '') ? requested : 'traveler-dashboard.html';
+  if (roles.includes('admin')) window.location.replace('admin-dashboard.html');
+  else if (roles.includes('operator')) window.location.replace('operator-dashboard.html');
+  else if (roles.includes('traveler')) { localStorage.removeItem('baa_after_auth_path'); window.location.replace(next); }
+  else throw new Error('This account does not have an assigned Visit Baa role.');
 }
 
 export async function logout() {

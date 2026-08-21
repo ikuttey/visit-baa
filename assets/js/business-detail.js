@@ -1,4 +1,4 @@
-import { requirePublicSupabase, showConfigurationNotice } from './supabase-client.js';
+import { requirePublicSupabase, showConfigurationNotice, siteUrl } from './supabase-client.js';
 import { signedPublicImageUrl } from './storage.js';
 import { renderPublicListingMedia } from './public-media.js';
 import { categoryFallback } from './listing-workflow.js';
@@ -23,14 +23,27 @@ async function init() {
     if (imageResult.error) throw imageResult.error;
     if (listingResult.error) throw listingResult.error;
     if (!businessResult.data) return container.append(emptyState('Business unavailable', 'This business may be unverified, suspended, or no longer active.'));
-    await renderBusiness(businessResult.data, imageResult.data || [], listingResult.data || []);
+    let reviews = [];
+    const listingIds = (listingResult.data || []).map((listing) => listing.id);
+    if (listingIds.length) {
+      const reviewResult = await client.from('public_reviews').select('listing_id,overall_rating').in('listing_id', listingIds);
+      if (reviewResult.error && !['42P01','PGRST205'].includes(reviewResult.error.code)) throw reviewResult.error;
+      reviews = reviewResult.data || [];
+    }
+    await renderBusiness(businessResult.data, imageResult.data || [], listingResult.data || [], reviews);
     setMessage(message);
   } catch (error) { setMessage(message, error.message, 'error'); }
 }
 
-async function renderBusiness(business, images, listings) {
+async function renderBusiness(business, images, listings, reviews) {
   clear(container);
   document.title = `${business.business_name} — Baa Local`;
+  const description = document.querySelector('meta[name="description"]'); if (description) description.content = business.description;
+  document.head.append(createElement('link', { attrs:{ rel:'canonical', href:siteUrl(`business.html?id=${encodeURIComponent(business.id)}`) } }));
+  [['og:title',document.title],['og:description',business.description],['og:type','business.business']].forEach(([property,content]) => document.head.append(createElement('meta', { attrs:{ property,content } })));
+  const structuredData = { '@context':'https://schema.org', '@type':'LocalBusiness', name:business.business_name, description:business.description, address:{ '@type':'PostalAddress', addressLocality:business.island, addressCountry:'MV' } };
+  if (reviews.length) structuredData.aggregateRating = { '@type':'AggregateRating', ratingValue:(reviews.reduce((sum, review) => sum + Number(review.overall_rating), 0) / reviews.length).toFixed(1), bestRating:'10', ratingCount:reviews.length };
+  document.head.append(createElement('script', { attrs:{ type:'application/ld+json' }, text:JSON.stringify(structuredData) }));
   const logo = createElement('div', { className: 'business-logo-large' });
   const logoUrl = business.logo_path ? await signedPublicImageUrl('business-logos', business.logo_path) : '';
   if (logoUrl) {
@@ -46,7 +59,7 @@ async function renderBusiness(business, images, listings) {
 
   const header = createElement('section', { className: 'business-profile panel', children: [logo, createElement('div', { children: [
     createElement('span', { className: 'eyebrow', text: `${business.island} · ${statusLabel(business.category)}` }),
-    createElement('h1', { text: business.business_name }), createElement('p', { text: business.description }),
+    createElement('h1', { text: business.business_name }), business.is_verified ? createElement('span', { className:'verified-label', text:'✓ Verified by Visit Baa' }) : null, createElement('p', { text: business.description }),
     business.business_address ? createElement('p', { className: 'help', text: business.business_address }) : null, contacts
   ] })] });
 
@@ -77,7 +90,19 @@ async function renderBusiness(business, images, listings) {
     ] })] }));
   }
   if (grid.childElementCount) services.append(grid); else services.append(emptyState('No published services', 'This verified business does not currently have an active published service.'));
-  container.append(header, gallery, services);
+  const location = createElement('section', { className:'panel', children:[createElement('div', { className:'panel-head', children:[createElement('div', { children:[createElement('h2', { text:'Location' }), createElement('p', { text:'Operator-supplied coordinates shown on OpenStreetMap.' })] })] })] });
+  if (Number.isFinite(Number(business.latitude)) && Number.isFinite(Number(business.longitude))) {
+    const latitude = Number(business.latitude); const longitude = Number(business.longitude); const delta = 0.01;
+    const src = `https://www.openstreetmap.org/export/embed.html?bbox=${longitude-delta}%2C${latitude-delta}%2C${longitude+delta}%2C${latitude+delta}&layer=mapnik&marker=${latitude}%2C${longitude}`;
+    location.append(createElement('iframe', { className:'business-map', attrs:{ src, title:`Map showing ${business.business_name}`, loading:'lazy', referrerpolicy:'no-referrer-when-downgrade' } }));
+  } else location.append(emptyState('Location not mapped', 'This verified business has not supplied coordinates yet.'));
+
+  const reviewSection = createElement('section', { className:'panel', children:[createElement('div', { className:'panel-head', children:[createElement('div', { children:[createElement('h2', { text:'Verified traveler reviews' }), createElement('p', { text:'Scores come only from completed Visit Baa reservations.' })] })] })] });
+  if (reviews.length) {
+    const average = reviews.reduce((sum, review) => sum + Number(review.overall_rating), 0) / reviews.length;
+    reviewSection.append(createElement('div', { className:'review-summary', children:[createElement('strong', { text:average.toFixed(1) }), createElement('span', { text:`${reviews.length} verified review${reviews.length === 1 ? '' : 's'} across active services` })] }));
+  } else reviewSection.append(emptyState('No verified reviews yet', 'Reviews appear after travelers complete a reservation.'));
+  container.append(header, gallery, services, location, reviewSection);
 }
 
 function showBusinessFallback(container, category) {

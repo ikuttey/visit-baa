@@ -1,7 +1,31 @@
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
-const baseUrl = (process.env.BAA_TEST_BASE_URL || 'http://127.0.0.1:3000').replace(/\/$/, '');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+let localServer = null;
+let baseUrl = process.env.BAA_TEST_BASE_URL?.replace(/\/$/, '');
+if (!baseUrl) {
+  const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.jpg': 'image/jpeg', '.svg':'image/svg+xml' };
+  localServer = createServer(async (request, response) => {
+    try {
+      const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+      if (pathname === '/favicon.ico') { response.writeHead(204); response.end(); return; }
+      const file = path.resolve(root, `.${pathname === '/' ? '/index.html' : pathname}`);
+      if (!file.startsWith(root)) throw new Error('Not found');
+      response.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream' });
+      response.end(await readFile(file));
+    } catch {
+      response.writeHead(404);
+      response.end('Not found');
+    }
+  });
+  await new Promise((resolve) => localServer.listen(0, '127.0.0.1', resolve));
+  baseUrl = `http://127.0.0.1:${localServer.address().port}`;
+}
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 
 async function watchPage(context) {
@@ -15,7 +39,8 @@ async function watchPage(context) {
   page.on('pageerror', (error) => errors.push(`page: ${error.message}`));
   page.on('requestfailed', (request) => errors.push(`request: ${request.url()} (${request.failure()?.errorText || 'failed'})`));
   page.on('response', (response) => {
-    if (response.status() >= 400 && !response.url().endsWith('/favicon.ico')) {
+    const optionalMarketplaceModel = /\/rest\/v1\/public_(?:reviews|accommodation_rooms|room_images|room_availability|room_rate_plans|listing_policies|promotions)\?/.test(response.url());
+    if (response.status() >= 400 && !response.url().endsWith('/favicon.ico') && !(response.status() === 404 && optionalMarketplaceModel)) {
       errors.push(`response: HTTP ${response.status()} ${response.url()}`);
     }
   });
@@ -77,4 +102,5 @@ try {
   console.log(`Public browser checks passed at ${baseUrl}${businessId ? ' with a verified business profile' : ''}.`);
 } finally {
   await browser.close();
+  if (localServer) await new Promise((resolve) => localServer.close(resolve));
 }

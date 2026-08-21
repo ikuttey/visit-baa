@@ -86,6 +86,7 @@
     @media(max-width:850px){.island-grid{grid-auto-columns:100%}.island-card,.island-card:nth-child(n){grid-column:auto;height:clamp(350px,68vw,460px);min-height:0}.carousel-prev{left:-10px}.carousel-next{right:-10px}}
     @media(max-width:550px){.island-grid{grid-auto-columns:100%;gap:14px;padding-bottom:17px}.island-card,.island-card:nth-child(n){height:clamp(320px,105vw,390px);min-height:0}.carousel-btn{width:42px;height:42px;font-size:21px}.carousel-prev{left:-7px}.carousel-next{right:-7px}}
   </style>
+  <link rel="stylesheet" href="assets/css/manta-planner.css">
 </head>
 <body>
   <!-- =====================================================
@@ -107,8 +108,8 @@
         <p class="hero-copy">Discover local-island stays, reef experiences and ways to get around Baa Atoll — brought together in one simple travel hub.</p>
         <form class="searchbox" id="heroSearch">
           <div class="field"><label>Explore an island</label><select id="islandSelect"><option>Dharavandhoo</option><option>Dhonfanu</option><option>Eydhafushi</option><option>Fehendhoo</option><option>Fulhadhoo</option><option>Goidhoo</option><option>Hithaadhoo</option><option>Kamadhoo</option><option>Kendhoo</option><option>Kihaadhoo</option><option>Kudarikilu</option><option>Maalhos</option><option>Thulhaadhoo</option></select></div>
-          <div class="field"><label>When</label><input type="date" aria-label="Travel date"></div>
-          <div class="field"><label>Travelers</label><select><option>2 guests</option><option>1 guest</option><option>3 guests</option><option>4 guests</option><option>5+ guests</option></select></div>
+          <div class="field"><label>When</label><input id="travelDate" type="date" aria-label="Travel date"></div>
+          <div class="field"><label>Travelers</label><select id="travelerSelect"><option value="2">2 guests</option><option value="1">1 guest</option><option value="3">3 guests</option><option value="4">4 guests</option><option value="5">5+ guests</option></select></div>
           <button class="searchbtn">Explore Baa →</button>
         </form>
       </div>
@@ -303,7 +304,11 @@
     document.getElementById('heroSearch').addEventListener('submit', (event) => {
       event.preventDefault();
       const island = document.getElementById('islandSelect').value;
-      window.location.href = `listings.html?island=${encodeURIComponent(island)}`;
+      const date = document.getElementById('travelDate').value;
+      const guests = document.getElementById('travelerSelect').value;
+      const params = new URLSearchParams({ island, guests });
+      if (date) params.set('date', date);
+      window.location.href = `listings.html?${params}`;
     });
 
     // Route planner form
@@ -374,5 +379,7 @@
   </script>
   <script src="config.js"></script>
   <script type="module" src="assets/js/home.js"></script>
+  <script type="module" src="assets/js/homepage-planner.js"></script>
+  <script type="module" src="assets/js/manta-planner.js"></script>
 </body>
 </html>

@@ -8,8 +8,24 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const expected = [
   'index.html', 'index (1).html', 'register.html', 'login.html', 'forgot-password.html',
   'reset-password.html', 'operator-dashboard.html', 'admin-dashboard.html', 'listings.html',
-  'listing.html', 'business.html', '.env.example', 'config.example.js', 'config.js',
+  'listing.html', 'business.html', 'traveler-register.html', 'traveler-dashboard.html', '.env.example', 'config.example.js', 'config.js',
   'serve.json',
+  'assets/js/facilities-config.js',
+  'assets/js/facilities-ui.js',
+  'assets/js/marketplace.js',
+  'assets/js/route-planner.js',
+  'assets/js/transfer-service.js',
+  'assets/js/homepage-planner.js',
+  'assets/js/trip-planner-service.js',
+  'assets/js/planner-catalogs.js',
+  'assets/js/pricing.js',
+  'assets/js/manta-planner.js',
+  'assets/css/manta-planner.css',
+  'assets/images/manta-planner.svg',
+  'assets/images/manta-planner.png',
+  'assets/js/traveler-register.js',
+  'assets/js/traveler-dashboard.js',
+  'scripts/test-operator-media-browser.mjs',
   'supabase/migrations/202608170001_core_schema.sql',
   'supabase/migrations/202608170002_rls_and_grants.sql',
   'supabase/migrations/202608170003_storage.sql',
@@ -18,6 +34,15 @@ const expected = [
   'supabase/migrations/202608170006_listing_revision_workflow.sql',
   'supabase/migrations/202608180007_public_read_models_rls.sql',
   'supabase/migrations/20260819164311_rpc_execute_grants_hardening.sql',
+  'supabase/migrations/20260821135712_marketplace_engine.sql',
+  'supabase/migrations/20260821135813_marketplace_core.sql',
+  'supabase/migrations/20260821152556_transfer_routes.sql',
+  'supabase/migrations/20260821165102_trip_booking_payments.sql',
+  'supabase/migrations/20260821182324_normalized_transport_locations.sql',
+  'supabase/migrations/20260821190514_explicit_pricing_units.sql',
+  'supabase/migrations/20260821190516_planner_catalogs_and_requirements.sql',
+  'supabase/migrations/20260821195038_journey_location_parent_validation.sql',
+  'supabase/migrations/20260822120000_authenticated_public_read_models.sql',
   'supabase/rollbacks/202608170005_operator_business_onboarding_rollback.sql',
   'supabase/rollbacks/202608170006_listing_revision_workflow_rollback.sql',
   'supabase/rollbacks/202608180007_public_read_models_rls_rollback.sql',
@@ -84,6 +109,13 @@ if (!/<button class="button aqua" type="submit" disabled>Save draft<\/button>/.t
   failures.push('operator-dashboard.html: listing submit control must start disabled');
 }
 if (!operatorDashboardHtml.includes('Add service or listing')) failures.push('operator-dashboard.html: updated listing action wording is missing');
+for (const requirement of ['file-picker-input','listingCover','listingGallery']) {
+  if (!operatorDashboardHtml.includes(requirement)) failures.push(`operator-dashboard.html: resilient media picker is missing: ${requirement}`);
+}
+if (operatorDashboardSource.indexOf('bindEvents();') > operatorDashboardSource.indexOf('await requireOperator()')) failures.push('operator-dashboard.js: controls must bind before dashboard network loading');
+for (const requirement of ['setFilePickerStatus','Save the draft to upload it','state.listingEditor.newGallery.push','listingMediaPicker','Choose cover image','Add gallery images']) {
+  if (!operatorDashboardSource.includes(requirement)) failures.push(`operator-dashboard.js: media selection feedback is missing: ${requirement}`);
+}
 if (!operatorDashboardSource.includes(".from('listings').insert({ ...payload, id, status: 'draft' })")) failures.push('operator-dashboard.js: listing insert must use a pre-generated draft ID');
 if (operatorDashboardSource.includes(".from('listings').insert(payload).select()")) failures.push('operator-dashboard.js: listing insert must not request RETURNING rows');
 if (!operatorDashboardSource.includes('assertInsertedDraft(await loadOwnedListing')) failures.push('operator-dashboard.js: separate post-insert owner SELECT is missing');
@@ -110,8 +142,29 @@ for (const file of (await readdir(scriptsDir)).filter((name) => name.endsWith('.
 const migrationFiles = expected.filter((file) => file.startsWith('supabase/migrations/') && file.endsWith('.sql'));
 const migrations = await Promise.all(migrationFiles.map((file) => readFile(path.join(root, file), 'utf8')));
 const sql = migrations.join('\n');
-for (const table of ['profiles','user_roles','businesses','business_images','listings','listing_images','availability','booking_enquiries','review_history']) {
+for (const table of ['profiles','user_roles','businesses','business_images','listings','listing_images','availability','booking_enquiries','review_history','traveler_profiles','accommodation_rooms','room_images','room_availability','room_rate_plans','listing_policies','promotions','saved_listings','trips','trip_items','trip_requirements','enquiry_messages','reviews','review_responses','transfer_route_details','trip_booking_batches','payment_references','activity_types']) {
   if (!sql.includes(`alter table public.${table} enable row level security`)) failures.push(`RLS is not enabled for ${table}`);
+}
+const mantaSource = await readFile(path.join(jsDir, 'manta-planner.js'), 'utf8');
+const tripPlannerSource = await readFile(path.join(jsDir, 'trip-planner-service.js'), 'utf8');
+const mantaCss = await readFile(path.join(root, 'assets/css/manta-planner.css'), 'utf8');
+if (!mantaSource.includes("'aria-label':'Open Visit Baa Trip Planner'")) failures.push('manta-planner.js: launcher accessible name is missing');
+if (new RegExp(`\\u{1F44B}|manta-launch-hand|manta-launch-bubble`, 'u').test(`${mantaSource}\n${mantaCss}`)) failures.push('Manta launcher must not contain a separate hand or permanent speech bubble');
+if (!mantaCss.includes('prefers-reduced-motion')) failures.push('manta-planner.css: reduced-motion handling is missing');
+for (const requirement of ['manta-option-track','aria-pressed','Previous ${label}','Next ${label}','trip_requirements','crypto.randomUUID()']) {
+  if (!mantaSource.includes(requirement) && !mantaCss.includes(requirement)) failures.push(`Manta planner requirement is missing: ${requirement}`);
+}
+for(const requirement of ['Manta budget pick','lowest known estimate','recalculateJourney'])if(!mantaSource.includes(requirement))failures.push(`manta-planner.js: budget-selection behavior is missing: ${requirement}`);
+for(const requirement of ['activityPlan','Which island should each activity come from, and for how many days?','Customize activity islands and days'])if(!mantaSource.includes(requirement))failures.push(`manta-planner.js: customizable multi-island activity planning is missing: ${requirement}`);
+for(const requirement of ['recommendedActivityIsland','plannedActivityDates','activityDays:days'])if(!tripPlannerSource.includes(requirement))failures.push(`trip-planner-service.js: multi-day activity scheduling is missing: ${requirement}`);
+if (!tripPlannerSource.includes(".neq('category','transfer')")) failures.push('trip-planner-service.js: published transfer listings must be excluded from Manta searches');
+if (/routeCandidates\(|kind:'transfer'/.test(tripPlannerSource)) failures.push('trip-planner-service.js: Manta must not create transport route segments');
+if (/renderRoutePoint|Where should your journey (?:begin|end)\?/.test(mantaSource)) failures.push('manta-planner.js: pickup and drop-off questions must be removed');
+if (!mantaSource.includes('Transportation is arranged directly by your selected guesthouse')) failures.push('manta-planner.js: guesthouse-arranged transportation message is missing');
+if (mantaSource.includes(".from('trips').insert({id,user_id:auth.data.user.id,...payload.trip}).select(")) failures.push('manta-planner.js: trip insert must not request RETURNING rows');
+if (!mantaSource.includes("const created=await client.from('trips').insert") || !mantaSource.includes("const fetched=await client.from('trips').select('id').eq('id',id).eq('user_id',auth.data.user.id)")) failures.push('manta-planner.js: separate post-insert owner SELECT is missing');
+for (const requirement of ['request_trip_bookings','p_idempotency_key','payment_references','Payment references require a trip booking','Visit Baa never receives or holds funds']) {
+  if (!sql.includes(requirement)) failures.push(`Trip booking/payment migration is missing: ${requirement}`);
 }
 for (const status of ['pending_review','verified','changes_requested','rejected','suspended','draft','published','paused','new','accepted','declined','completed','cancelled']) {
   if (!sql.includes(`'${status}'`)) failures.push(`Required status missing from migrations: ${status}`);

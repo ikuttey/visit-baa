@@ -1,6 +1,6 @@
 # Baa Local / Visit Baa
 
-Baa Local is a lightweight HTML, CSS, and JavaScript marketplace for verified tourism operators in Baa Atoll. The existing public design is preserved and extended with Supabase-backed registration, authentication, operator tools, administrator approvals, public listings, availability, and booking enquiries.
+Baa Local is a lightweight HTML, CSS, and JavaScript marketplace for verified tourism operators in Baa Atoll. The existing public design is preserved and extended with Supabase-backed search, room/session inventory, secure reservation requests, traveler accounts, deterministic route-first trip planning, directional island transfer schedules, reviews, promotions, operator tools, and administrator approvals.
 
 ## Current status
 
@@ -12,7 +12,9 @@ treating a build as production-ready.
 
 - `index (1).html` — preserved public homepage
 - `register.html` — operator registration
-- `login.html` — operator/admin login
+- `login.html` — operator/admin/traveler login
+- `traveler-register.html` — traveler account registration
+- `traveler-dashboard.html` — bookings, messages, saved listings, reviews, and My Baa Trip
 - `operator-dashboard.html` — protected operator workspace
 - `admin-dashboard.html` — protected administrator workspace
 - `listings.html` — approved public listings
@@ -39,5 +41,14 @@ Run source checks with:
 ```powershell
 npm run check
 ```
+
+Run the complete source/security-contract suite and responsive marketplace browser suite with:
+
+```powershell
+npm test
+npm run test:browser:marketplace
+```
+
+The floating manta planner lazy-loads current public marketplace data when opened. Its deterministic, question-by-question flow searches the shared directional route network, real availability, stays, and experiences; it never exposes or calls a client-side AI key. Selected services remain one editable My Baa Trip draft until the traveler explicitly sends separate, revalidated operator requests. Payments stay direct between traveler and operator, with Visit Baa recording references only.
 
 The pre-implementation backup is in `backup-before-supabase-20260817-1200/`.

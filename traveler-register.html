@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Create traveler account — Visit Baa</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <link rel="stylesheet" href="assets/css/manta-planner.css" />
+  </head>
+  <body class="auth-page">
+    <main class="auth-layout">
+      <section class="auth-story" aria-labelledby="traveler-story-title">
+        <a href="index (1).html" class="brand"
+          ><span class="brand-mark"></span>Baa Local</a
+        >
+        <div>
+          <span class="eyebrow" style="color: var(--aqua)"
+            >Traveler account</span
+          >
+          <h1 id="traveler-story-title">Keep your Baa trip in one place.</h1>
+          <p>
+            Save listings, organize My Baa Trip, follow booking requests,
+            message operators, and review completed experiences.
+          </p>
+        </div>
+        <small
+          >Your private bookings and messages are protected by account-level
+          access rules.</small
+        >
+      </section>
+      <section class="auth-panel">
+        <div class="auth-card" style="max-width: 520px">
+          <span class="eyebrow">Plan your visit</span>
+          <h2>Create traveler account</h2>
+          <div id="configMessage" hidden></div>
+          <div id="formMessage" role="status" aria-live="polite" hidden></div>
+          <form id="travelerRegisterForm">
+            <div class="form-grid" style="grid-template-columns: 1fr">
+              <div class="field">
+                <label for="fullName">Full name</label
+                ><input
+                  id="fullName"
+                  autocomplete="name"
+                  required
+                  maxlength="120"
+                />
+              </div>
+              <div class="field">
+                <label for="phone">Phone or WhatsApp</label
+                ><input id="phone" autocomplete="tel" maxlength="80" />
+              </div>
+              <div class="field">
+                <label for="email">Email</label
+                ><input
+                  id="email"
+                  type="email"
+                  autocomplete="email"
+                  required
+                  maxlength="254"
+                />
+              </div>
+              <div class="field">
+                <label for="password">Password</label
+                ><input
+                  id="password"
+                  type="password"
+                  minlength="10"
+                  autocomplete="new-password"
+                  required
+                />
+              </div>
+              <div class="field">
+                <label for="confirmPassword">Confirm password</label
+                ><input
+                  id="confirmPassword"
+                  type="password"
+                  minlength="10"
+                  autocomplete="new-password"
+                  required
+                />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="button aqua" type="submit">Create account</button>
+            </div>
+          </form>
+          <div class="auth-links">
+            <a href="login.html">Already have an account?</a
+            ><a href="index (1).html">Return home</a>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="config.js"></script>
+    <script type="module" src="assets/js/traveler-register.js"></script>
+    <script type="module" src="assets/js/manta-planner.js"></script>
+  </body>
+</html>

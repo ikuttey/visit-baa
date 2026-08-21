@@ -245,6 +245,17 @@ The architecture can run on GitHub Pages because all privileged enforcement live
 
 ## Remaining manual work
 
+Before deploying this marketplace upgrade, apply these new migrations in order:
+
+1. `20260821135712_marketplace_engine.sql` (enum values in its own committed migration).
+2. `20260821135813_marketplace_core.sql` (tables, views, RLS, RPCs, indexes, and room Storage policies).
+3. `20260821152556_transfer_routes.sql` (directional transfer schedules, pricing, RLS, grants, and the public route view).
+4. `20260821165102_trip_booking_payments.sql` (trip draft extensions, idempotent multi-operator requests, deposit snapshots, direct-payment references, private proof storage, RLS, and grants).
+
+Run these against a disposable staging project first. The application preserves
+the existing UUID insert-then-owner-fetch listing workflow and reuses the
+existing `availability` table for activity sessions.
+
 - Supply a real Supabase URL and public key.
 - Apply all migrations successfully.
 - Enable email confirmation and production SMTP.
@@ -254,6 +265,6 @@ The architecture can run on GitHub Pages because all privileged enforcement live
 - Add final legal platform terms/listing rules and privacy notice.
 - Confirm commercial rights for all existing public-site imagery.
 - Decide whether operators may publicly expose contact details by default.
-- The route planner remains a clearly labelled prototype until transport schedule data is supplied.
+- Add active directional route details and date availability to published transfer listings before launching the Island Hopping planner.
+- An AI itinerary endpoint is intentionally not configured. The structured manta planner remains functional without one; any future AI integration must run through a protected server or Edge Function.
 - Online payment is intentionally not implemented.
-

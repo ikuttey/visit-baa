@@ -6,8 +6,9 @@ export function createListingId(uuidFactory = () => crypto.randomUUID()) {
   return id;
 }
 
-export function validateListingFields({ price, maxCapacity, availableSpaces, startTime, endTime, hasCover }) {
-  if (!Number.isFinite(price) || price <= 0) throw new Error('Price must be greater than zero.');
+export function validateListingFields({ price, priceOnRequest = false, maxCapacity, availableSpaces, startTime, endTime, hasCover }) {
+  if (!priceOnRequest && (!Number.isFinite(price) || price <= 0)) throw new Error('Price must be greater than zero.');
+  if (priceOnRequest && price !== null) throw new Error('Price-on-request listings must not store a numeric price.');
   if (!Number.isInteger(maxCapacity) || maxCapacity < 1) throw new Error('Maximum capacity must be a positive whole number.');
   if (!Number.isInteger(availableSpaces) || availableSpaces < 0) throw new Error('Available spaces must be zero or a positive whole number.');
   if (availableSpaces > maxCapacity) throw new Error('Available spaces cannot exceed maximum capacity.');
