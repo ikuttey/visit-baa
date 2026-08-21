@@ -8,7 +8,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const expected = [
   'index.html', 'index (1).html', 'register.html', 'login.html', 'forgot-password.html',
   'reset-password.html', 'operator-dashboard.html', 'admin-dashboard.html', 'listings.html',
-  'listing.html', 'business.html', 'traveler-register.html', 'traveler-dashboard.html', '.env.example', 'config.example.js', 'config.js',
+  'listing.html', 'business.html', 'trip-results.html', 'traveler-register.html', 'traveler-dashboard.html', '.env.example', 'config.example.js', 'config.js',
   'serve.json',
   'assets/js/facilities-config.js',
   'assets/js/facilities-ui.js',
@@ -21,6 +21,8 @@ const expected = [
   'assets/js/pricing.js',
   'assets/js/manta-planner.js',
   'assets/css/manta-planner.css',
+  'assets/js/trip-results.js',
+  'assets/css/trip-results.css',
   'assets/images/manta-planner.svg',
   'assets/images/manta-planner.png',
   'assets/js/traveler-register.js',
@@ -155,8 +157,12 @@ for (const requirement of ['manta-option-track','aria-pressed','Previous ${label
   if (!mantaSource.includes(requirement) && !mantaCss.includes(requirement)) failures.push(`Manta planner requirement is missing: ${requirement}`);
 }
 for(const requirement of ['Manta budget pick','lowest known estimate','recalculateJourney'])if(!mantaSource.includes(requirement))failures.push(`manta-planner.js: budget-selection behavior is missing: ${requirement}`);
-for(const requirement of ['activityPlan','Which island should each activity come from, and for how many days?','Customize activity islands and days'])if(!mantaSource.includes(requirement))failures.push(`manta-planner.js: customizable multi-island activity planning is missing: ${requirement}`);
-for(const requirement of ['recommendedActivityIsland','plannedActivityDates','activityDays:days'])if(!tripPlannerSource.includes(requirement))failures.push(`trip-planner-service.js: multi-day activity scheduling is missing: ${requirement}`);
+for(const requirement of ['activityPlan','How many days, trips, or times would you like to enjoy each activity?','frequency unit','How many?'])if(!mantaSource.includes(requirement))failures.push(`manta-planner.js: customizable activity frequency planning is missing: ${requirement}`);
+if(mantaSource.includes("step==='activityPlan'&&(state.answers.islands.length<2"))failures.push('manta-planner.js: activity frequency selection must also appear for single-island trips');
+const tripResultsSource = await readFile(path.join(jsDir, 'trip-results.js'), 'utf8');
+for(const requirement of ['trip-results.html','baa_manta_search'])if(!mantaSource.includes(requirement))failures.push(`Manta separate-results navigation is missing: ${requirement}`);
+for(const requirement of ["Manta's budget-friendly pick",'lowest known suitable option','manta-page-selected','manta-page-alternatives','recalculateJourney'])if(!tripResultsSource.includes(requirement))failures.push(`Manta detailed results requirement is missing: ${requirement}`);
+for(const requirement of ['recommendedActivityIsland','plannedActivityDates','activityFrequency:frequency','activityQuantity:quantity'])if(!tripPlannerSource.includes(requirement))failures.push(`trip-planner-service.js: activity frequency scheduling is missing: ${requirement}`);
 if (!tripPlannerSource.includes(".neq('category','transfer')")) failures.push('trip-planner-service.js: published transfer listings must be excluded from Manta searches');
 if (/routeCandidates\(|kind:'transfer'/.test(tripPlannerSource)) failures.push('trip-planner-service.js: Manta must not create transport route segments');
 if (/renderRoutePoint|Where should your journey (?:begin|end)\?/.test(mantaSource)) failures.push('manta-planner.js: pickup and drop-off questions must be removed');

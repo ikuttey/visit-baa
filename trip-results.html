@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Your Manta trip results — Visit Baa</title>
+  <meta name="description" content="Review Manta's budget-friendly selected stays and activities, compare alternatives, and customize your Visit Baa trip.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/app.css">
+  <link rel="stylesheet" href="assets/css/manta-planner.css">
+  <link rel="stylesheet" href="assets/css/trip-results.css">
+</head>
+<body class="trip-results-body">
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header-inner">
+        <a href="index (1).html" class="brand"><span class="brand-mark"></span>Visit Baa</a>
+        <nav class="app-nav" aria-label="Main navigation">
+          <a href="index (1).html">Home</a>
+          <a href="listings.html">Explore listings</a>
+          <a href="traveler-dashboard.html">My Baa Trip</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="trip-results-hero">
+        <div class="page-wrap trip-results-hero-inner">
+          <div>
+            <span class="eyebrow">Manta trip planner</span>
+            <h1>Your detailed Visit Baa trip</h1>
+            <p>Manta selects the lowest known suitable published option first. Compare every other matching stay and activity below.</p>
+          </div>
+          <a class="button secondary" href="index (1).html">Start a new search</a>
+        </div>
+      </section>
+
+      <div id="tripResultsStatus" class="page-wrap trip-results-status" role="status" aria-live="polite">
+        <img src="assets/images/manta-planner.png" alt="" width="120" height="82">
+        <div><strong>Manta is checking current published options…</strong><span>Loading stays, activities, availability, and pricing.</span></div>
+      </div>
+
+      <section id="mantaSearchResults" class="manta-page-results trip-results-content" aria-labelledby="mantaResultsTitle" hidden></section>
+    </main>
+
+    <footer class="app-footer">
+      <div class="app-footer-inner"><span>Visit Baa · local-island stays and experiences</span><a href="register.html">Become an operator</a></div>
+    </footer>
+  </div>
+  <script src="config.js"></script>
+  <script type="module" src="assets/js/trip-results.js"></script>
+</body>
+</html>

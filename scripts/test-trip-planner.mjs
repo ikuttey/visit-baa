@@ -99,18 +99,30 @@ assert.equal(splitJourney.segments.find((segment)=>segment.id==='stay-Maalhos').
 assert.equal(splitJourney.segments.find((segment)=>segment.id==='stay-Kamadhoo').candidates[0].items[0].endDate,'2026-08-29');
 assert.equal(splitJourney.segments.some((segment)=>segment.kind==='transfer'),false);
 
-const customActivityAnswers={...splitAnswers,activities:['snorkelling'],activityPlan:{snorkelling:{island:'Kamadhoo',days:2}}};
+const customActivityAnswers={...splitAnswers,activities:['snorkelling'],activityPlan:{snorkelling:{island:'Kamadhoo',unit:'trips',quantity:2,days:2}}};
 assert.equal(recommendedActivityIsland(splitData,customActivityAnswers,'snorkelling'),'Kamadhoo','Manta should recommend the island with the lowest known activity estimate');
 const customActivityJourney=searchTripJourney(splitData,customActivityAnswers,{rooms:[],generic:[
   {id:'kamadhoo-snorkel-1',listing_id:'snorkel-b',available_date:'2026-08-27',start_time:'09:00',remaining_spaces:6},
   {id:'kamadhoo-snorkel-2',listing_id:'snorkel-b',available_date:'2026-08-28',start_time:'09:00',remaining_spaces:6}
 ]});
 const plannedActivities=customActivityJourney.segments.filter((segment)=>segment.kind==='activity');
-assert.equal(plannedActivities.length,2,'the requested number of activity days must create separate requirements');
+assert.equal(plannedActivities.length,2,'the requested number of activity trips must create separate requirements');
 assert.deepEqual(plannedActivities.map((segment)=>segment.island),['Kamadhoo','Kamadhoo']);
 assert.deepEqual(plannedActivities.map((segment)=>segment.plannedDate),['2026-08-27','2026-08-28']);
-assert.equal(customActivityJourney.totals.get('USD'),590,'each customized activity day must update the total');
-assert.equal(plannerDraftPayload(customActivityAnswers,customActivityJourney).items.filter((item)=>item.item_kind==='activity').length,2,'every customized activity day must be saved');
+assert.deepEqual(plannedActivities.map((segment)=>segment.activityFrequency),['trips','trips']);
+assert.deepEqual(plannedActivities.map((segment)=>segment.activityOccurrence),[1,2]);
+assert.match(plannedActivities[0].title,/Trip 1 of 2/);
+assert.equal(customActivityJourney.totals.get('USD'),590,'each customized activity trip must update the total');
+assert.equal(plannerDraftPayload(customActivityAnswers,customActivityJourney).items.filter((item)=>item.item_kind==='activity').length,2,'every customized activity trip must be saved');
+for(const unit of ['days','times']){
+  const frequencyJourney=searchTripJourney(splitData,{...customActivityAnswers,activityPlan:{snorkelling:{island:'Kamadhoo',unit,quantity:2}}},{rooms:[],generic:[
+    {id:`${unit}-1`,listing_id:'snorkel-b',available_date:'2026-08-27',start_time:'09:00',remaining_spaces:6},
+    {id:`${unit}-2`,listing_id:'snorkel-b',available_date:'2026-08-28',start_time:'09:00',remaining_spaces:6}
+  ]});
+  const occurrences=frequencyJourney.segments.filter((segment)=>segment.kind==='activity');
+  assert.equal(occurrences.length,2,`${unit} quantity must create two separately priced activity occurrences`);
+  assert.ok(occurrences.every((segment)=>segment.activityFrequency===unit),`${unit} frequency must be preserved in every segment`);
+}
 
 assert.equal(calculateListingPrice(listing('ten','accommodation','Ten nights',50,'per_room_per_night'),{adults:2,children:0,rooms:1,nights:10}).total,500);
 assert.equal(calculateListingPrice(listing('two','accommodation','Two rooms',50,'per_room_per_night'),{adults:2,children:0,rooms:2,nights:10}).total,1000);
