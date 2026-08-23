@@ -3,6 +3,8 @@ import { signedPublicImageUrl } from './storage.js';
 import { renderPublicListingMedia } from './public-media.js';
 import { categoryFallback } from './listing-workflow.js';
 import { clear, createElement, emptyState, formatMoney, setMessage, statusLabel } from './ui.js';
+import { listingGroup, listingKindLabel } from './service-catalogs.js';
+import { calculateListingPrice } from './pricing.js';
 
 const container = document.getElementById('businessDetail');
 const message = document.getElementById('businessPageMessage');
@@ -58,7 +60,7 @@ async function renderBusiness(business, images, listings, reviews) {
   if (business.website_url) contacts.append(createElement('a', { className: 'button secondary', text: 'Visit website', attrs: { href: business.website_url, target: '_blank', rel: 'noopener noreferrer' } }));
 
   const header = createElement('section', { className: 'business-profile panel', children: [logo, createElement('div', { children: [
-    createElement('span', { className: 'eyebrow', text: `${business.island} · ${statusLabel(business.category)}` }),
+    createElement('span', { className: 'eyebrow', text: `${business.island} · ${(business.service_category_names||[statusLabel(business.category)]).join(' · ')}` }),
     createElement('h1', { text: business.business_name }), business.is_verified ? createElement('span', { className:'verified-label', text:'✓ Verified by Visit Baa' }) : null, createElement('p', { text: business.description }),
     business.business_address ? createElement('p', { className: 'help', text: business.business_address }) : null, contacts
   ] })] });
@@ -78,18 +80,13 @@ async function renderBusiness(business, images, listings, reviews) {
   if (galleryGrid.childElementCount) gallery.append(galleryGrid); else gallery.append(emptyState('No business photographs', 'This operator has not added public gallery photographs yet.'));
 
   const services = createElement('section', { className: 'panel', children: [createElement('div', { className: 'panel-head', children: [createElement('div', { children: [createElement('h2', { text: 'Services offered' }), createElement('p', { text: 'Active services published by this business.' })] })] })] });
-  const grid = createElement('div', { className: 'listing-grid' });
-  for (const listing of listings) {
-    const media = createElement('div', { className: 'listing-card-media' });
-    await renderPublicListingMedia(media, listing);
-    grid.append(createElement('article', { className: 'listing-card', children: [media, createElement('div', { className: 'listing-card-body', children: [
-      createElement('span', { className: 'eyebrow', text: statusLabel(listing.category) }), createElement('h3', { text: listing.title }),
-      createElement('div', { className: 'listing-meta', children: [createElement('span', { text: listing.island }), createElement('span', { text: business.business_name })] }),
-      createElement('p', { text: listing.summary }), createElement('div', { className: 'price', text: `${formatMoney(listing.price, listing.currency)} ${statusLabel(listing.price_unit)}` }),
-      createElement('div', { className: 'form-actions', children: [createElement('a', { className: 'button secondary', text: 'View details →', attrs: { href: `listing.html?id=${encodeURIComponent(listing.id)}` } })] })
-    ] })] }));
+  const groups=new Map();listings.forEach((listing)=>{const name=listingGroup(listing);if(!groups.has(name))groups.set(name,[]);groups.get(name).push(listing);});
+  for (const [groupName,groupListings] of groups) {
+    const grid=createElement('div',{className:'listing-grid'});
+    for(const listing of groupListings){const media=createElement('div',{className:'listing-card-media'});await renderPublicListingMedia(media,listing);const completePrice=calculateListingPrice(listing,{adults:1,children:0});grid.append(createElement('article',{className:'listing-card',children:[media,createElement('div',{className:'listing-card-body',children:[createElement('span',{className:'eyebrow',text:listingKindLabel(listing)}),createElement('h3',{text:listing.title}),createElement('div',{className:'listing-meta',children:[createElement('span',{text:listing.island}),createElement('span',{text:`Provided by ${business.business_name}`})]}),listing.activity_type_slugs?.length?createElement('p',{className:'package-activity-list',text:listing.activity_type_slugs.join(' · ').replaceAll('-',' ')}):null,createElement('p',{text:listing.summary}),createElement('div',{className:'price',text:completePrice.total==null?'Complete price on request':`${formatMoney(completePrice.total,listing.currency)} complete required price for 1 guest`}),createElement('div',{className:'form-actions',children:[createElement('a',{className:'button secondary',text:listing.is_package?'View Package →':'View details →',attrs:{href:`listing.html?id=${encodeURIComponent(listing.id)}`}})]})]})]}));}
+    services.append(createElement('h3',{className:'service-group-title',text:groupName}),grid);
   }
-  if (grid.childElementCount) services.append(grid); else services.append(emptyState('No published services', 'This verified business does not currently have an active published service.'));
+  if (!listings.length) services.append(emptyState('No published services', 'This verified business does not currently have an active published service.'));
   const location = createElement('section', { className:'panel', children:[createElement('div', { className:'panel-head', children:[createElement('div', { children:[createElement('h2', { text:'Location' }), createElement('p', { text:'Operator-supplied coordinates shown on OpenStreetMap.' })] })] })] });
   if (Number.isFinite(Number(business.latitude)) && Number.isFinite(Number(business.longitude))) {
     const latitude = Number(business.latitude); const longitude = Number(business.longitude); const delta = 0.01;

@@ -3,8 +3,9 @@ import { logout, requireAdmin } from './auth.js';
 import { signedImageUrl } from './storage.js';
 import { bindTabs, clear, createElement, displayList, emptyState, formatDate, formatMoney, setBusy, setMessage, statusBadge, statusLabel } from './ui.js';
 import { renderFacilitiesView } from './facilities-ui.js';
+import { priceUnitLabel } from './pricing.js';
 
-const state = { user: null, businesses: [], listings: [], profiles: [], roles: [], reservations: [], reviews: [], paymentReferences: [] };
+const state = { user: null, businesses: [], listings: [], profiles: [], roles: [], reservations: [], reviews: [], paymentReferences: [],serviceCategories:[],businessServices:[],packageDetails:[],packageTransfers:[],priceComponents:[] };
 const message = document.getElementById('adminMessage');
 const dialog = document.getElementById('inspectionDialog');
 
@@ -26,16 +27,18 @@ async function init() {
 async function loadData() {
   setMessage(message, 'Loading administrator records…', 'loading');
   const client = requireSupabase();
-  const [businessResult, listingResult, profileResult, roleResult, reservationResult, reviewResult, paymentResult] = await Promise.all([
+  const [businessResult, listingResult, profileResult, roleResult, reservationResult, reviewResult, paymentResult,serviceResult,businessServiceResult,packageResult,packageTransferResult,priceComponentResult] = await Promise.all([
     client.from('businesses').select('*').order('created_at', { ascending: false }),
     client.from('listings').select('*, businesses(id,owner_id,business_name,status,island,category,contact_person_name,email,phone,registration_number)').order('created_at', { ascending: false }),
     client.from('profiles').select('*').order('created_at', { ascending: false }),
     client.from('user_roles').select('*'),
     client.from('booking_enquiries').select('*').order('created_at', { ascending: false }).limit(500),
     client.from('reviews').select('*').order('created_at', { ascending: false }).limit(500),
-    client.from('payment_references').select('*').order('created_at', { ascending: false }).limit(500)
+    client.from('payment_references').select('*').order('created_at', { ascending: false }).limit(500),
+    client.from('service_categories').select('id,slug,name').order('sort_order'),client.from('business_service_categories').select('*'),
+    client.from('listing_package_details').select('*'),client.from('package_transfer_options').select('*, transport_locations(name)'),client.from('listing_price_components').select('*,listing_price_tiers(*)').order('sort_order')
   ]);
-  for (const result of [businessResult, listingResult, profileResult, roleResult, reservationResult, reviewResult]) if (result.error) throw result.error;
+  for (const result of [businessResult, listingResult, profileResult, roleResult, reservationResult, reviewResult,serviceResult,businessServiceResult,packageResult,packageTransferResult,priceComponentResult]) if (result.error) throw result.error;
   if (paymentResult.error && !['PGRST204','PGRST205','42P01','42703'].includes(paymentResult.error.code)) throw paymentResult.error;
   state.businesses = businessResult.data || [];
   state.listings = listingResult.data || [];
@@ -44,6 +47,7 @@ async function loadData() {
   state.reservations = reservationResult.data || [];
   state.reviews = reviewResult.data || [];
   state.paymentReferences = paymentResult.data || [];
+  state.serviceCategories=serviceResult.data||[];state.businessServices=businessServiceResult.data||[];state.packageDetails=packageResult.data||[];state.packageTransfers=packageTransferResult.data||[];state.priceComponents=priceComponentResult.data||[];
   renderAll(); setMessage(message);
 }
 
@@ -68,15 +72,18 @@ function listingName(listingId) {
   return state.listings.find((listing) => listing.id === listingId)?.title || 'Listing';
 }
 
+function businessServiceNames(businessId){const ids=new Set(state.businessServices.filter((item)=>item.business_id===businessId).map((item)=>item.service_category_id));return state.serviceCategories.filter((item)=>ids.has(item.id)).map((item)=>item.name);}
+function snapshotPriceLines(reservation){return(reservation.price_snapshot?.lines||[]).filter((line)=>line.status!=='optional'||line.selected).map((line)=>createElement('small',{text:`${line.name}: ${line.status==='included'?'Included':line.calculated_amount==null?'Price pending':`${formatMoney(line.calculated_amount,line.currency||reservation.quote_currency)} (${line.quantity} × ${line.unit?.replaceAll('_',' ')||'fixed'})`}`}));}
+
 function renderReservations() {
   const container = document.getElementById('adminReservationsTable'); clear(container);
   if (!state.reservations.length) return container.append(emptyState('No reservations', 'Booking requests will appear here when travelers contact operators.'));
   const body = createElement('tbody');
-  state.reservations.forEach((reservation) => { const refs=state.paymentReferences.filter((item)=>item.booking_id===reservation.id); body.append(createElement('tr', { children: [
+  state.reservations.forEach((reservation) => { const refs=state.paymentReferences.filter((item)=>item.booking_id===reservation.id);const listing=state.listings.find((item)=>item.id===reservation.listing_id); body.append(createElement('tr', { children: [
     createElement('td', { children: [createElement('strong', { text: reservation.booking_reference || 'Legacy enquiry' }), createElement('div', { text: reservation.guest_full_name })] }),
-    createElement('td', { text: listingName(reservation.listing_id) }),
+    createElement('td', { children:[createElement('strong',{text:listingName(reservation.listing_id)}),createElement('small',{text:`Provided by ${listing?.businesses?.business_name||'operator business'}`}),listing?.listing_kind==='excursion_package'?createElement('small',{text:`Package · ${displayList(listing.activity_type_slugs)}`}):null] }),
     createElement('td', { text: reservation.check_out_date ? `${formatDate(`${reservation.requested_date}T00:00:00`)} - ${formatDate(`${reservation.check_out_date}T00:00:00`)}` : formatDate(`${reservation.requested_date}T00:00:00`) }),
-    createElement('td', { children:[createElement('div',{text:Number(reservation.quoted_total)>0?formatMoney(reservation.quoted_total,reservation.quote_currency):'Not quoted'}),Number(reservation.deposit_amount)>0?createElement('small',{text:`Deposit ${formatMoney(reservation.deposit_amount,reservation.quote_currency)} · ${statusLabel(reservation.payment_status)}`}):null,...refs.map((item)=>createElement('small',{text:`${item.payment_reference}: ${formatMoney(item.amount,item.currency)} · ${statusLabel(item.status)}`}))] }),
+    createElement('td', { children:[createElement('div',{text:Number(reservation.quoted_total)>0?formatMoney(reservation.quoted_total,reservation.quote_currency):'Not quoted'}),...snapshotPriceLines(reservation),Number(reservation.deposit_amount)>0?createElement('small',{text:`Deposit ${formatMoney(reservation.deposit_amount,reservation.quote_currency)} · ${statusLabel(reservation.payment_status)}`}):null,...refs.map((item)=>createElement('small',{text:`${item.payment_reference}: ${formatMoney(item.amount,item.currency)} · ${statusLabel(item.status)}`}))] }),
     createElement('td', { children: [statusBadge(reservation.status)] })
   ] })); });
   container.append(tableWrap(['Reference / traveler','Listing','Date','Total','Status'], body));
@@ -134,6 +141,8 @@ function renderBusinessTable(container, records, reviewMode) {
   if (!records.length) return container.append(emptyState(reviewMode ? 'No pending business applications' : 'No business records', reviewMode ? 'New applications will appear here.' : 'No operators have registered yet.'));
   const body = createElement('tbody');
   records.forEach((business) => {
+    const owner=state.profiles.find((profile)=>profile.id===business.owner_id);
+    const listingCount=state.listings.filter((listing)=>listing.business_id===business.id).length;
     const actions = createElement('div', { className: 'table-actions' });
     actions.append(button('Inspect', () => inspectBusiness(business)));
     if (reviewMode || business.status !== 'verified') actions.append(button('Approve', () => reviewBusiness(business.id, 'verified'), 'aqua'));
@@ -141,8 +150,8 @@ function renderBusinessTable(container, records, reviewMode) {
     actions.append(button('Reject', () => reviewBusiness(business.id, 'rejected'), 'danger'));
     if (business.status === 'verified') actions.append(button('Suspend', () => reviewBusiness(business.id, 'suspended'), 'danger'));
     body.append(createElement('tr', { children: [
-      createElement('td', { children: [createElement('strong', { text: business.business_name }), createElement('div', { text: business.registration_number })] }),
-      createElement('td', { text: `${business.island} · ${statusLabel(business.category)}` }),
+      createElement('td', { children: [createElement('strong', { text: business.business_name }), createElement('div', { text: business.registration_number }),createElement('small',{text:`Operator: ${owner?.full_name||business.contact_person_name} · ${listingCount} listing${listingCount===1?'':'s'}`})] }),
+      createElement('td', { text: `${business.island} · ${businessServiceNames(business.id).join(' · ')||statusLabel(business.category)}` }),
       createElement('td', { children: [statusBadge(business.status)] }),
       createElement('td', { text: formatDate(business.created_at) }),
       createElement('td', { children: [actions] })
@@ -167,7 +176,7 @@ function renderListingTable(container, records, reviewMode) {
     body.append(createElement('tr', { children: [
       createElement('td', { children: [createElement('strong', { text: listing.title }), createElement('div', { text: listing.businesses?.business_name || 'Business' })] }),
       createElement('td', { text: `${listing.island} · ${statusLabel(listing.category)}` }),
-      createElement('td', { text: formatMoney(listing.price, listing.currency) }),
+      createElement('td', { text: listing.pricing_mode==='components_only'?'Separate charges':listing.price==null?'Price on request':formatMoney(listing.price, listing.currency) }),
       createElement('td', { children: [statusBadge(listing.status)] }),
       createElement('td', { children: [actions] })
     ] }));
@@ -182,6 +191,13 @@ function tableWrap(headings, body) {
 
 function definition(label, data) {
   return createElement('div', { className: 'definition', children: [createElement('small', { text: label }), createElement('strong', { text: data ?? '—' })] });
+}
+
+function pricingReviewSection(listing){
+  const components=state.priceComponents.filter((component)=>component.listing_id===listing.id);const section=createElement('section',{className:'admin-pricing-review',children:[createElement('h3',{text:'Operator pricing'})]});
+  if(listing.pricing_mode!=='components_only')section.append(definition('Main service charge',listing.price==null?'Price on request':`${formatMoney(listing.price,listing.currency)} / ${priceUnitLabel(listing.price_unit).replace(/^Per /,'').toLowerCase()}`));
+  for(const status of ['required','optional','included']){const rows=components.filter((component)=>component.charge_status===status);if(!rows.length)continue;section.append(createElement('h4',{text:status==='required'?'Required':status==='optional'?'Optional':'Included'}));rows.forEach((component)=>section.append(createElement('div',{className:'admin-price-component',children:[createElement('strong',{text:component.name}),createElement('span',{text:status==='included'?'Included':component.amount==null?'Price on request':`${formatMoney(component.amount,component.currency)} / ${priceUnitLabel(component.price_unit).replace(/^Per /,'').toLowerCase()}`}),...(component.listing_price_tiers||[]).map((tier)=>createElement('small',{text:`${tier.minimum_guests}–${tier.maximum_guests} guests: ${formatMoney(tier.amount,component.currency)} ${tier.calculation_kind==='fixed_total'?'fixed total':priceUnitLabel(component.price_unit).toLowerCase()}`}))]})));}
+  return section;
 }
 
 async function mediaPreview(items, fallbackAlt) {
@@ -205,7 +221,7 @@ async function inspectBusiness(business) {
   const profile = state.profiles.find((item) => item.id === business.owner_id);
   const details = createElement('div', { className: 'definition-grid', children: [
     definition('Contact person', business.contact_person_name), definition('Account name', profile?.full_name),
-    definition('Registration number', business.registration_number), definition('Category', statusLabel(business.category)),
+    definition('Registration number', business.registration_number), definition('Services', businessServiceNames(business.id).join(', ')||statusLabel(business.category)),
     definition('Island', business.island), definition('Email', business.email), definition('Phone / WhatsApp', business.phone),
     definition('Address', business.business_address), definition('Website', business.website_url), definition('Description', business.description),
     definition('Accuracy confirmed', business.accuracy_confirmed ? 'Yes' : 'No'), definition('Terms accepted', business.terms_accepted ? 'Yes' : 'No'),
@@ -232,16 +248,22 @@ async function inspectListing(listing) {
   dialog.showModal();
   const business = state.businesses.find((item) => item.id === listing.business_id) || listing.businesses;
   const profile = state.profiles.find((item) => item.id === business?.owner_id);
+  const packageDetails=state.packageDetails.find((item)=>item.listing_id===listing.id);
+  const packageTransfers=state.packageTransfers.filter((item)=>item.listing_id===listing.id);
   const details = createElement('div', { className: 'definition-grid', children: [
     definition('Business', business?.business_name), definition('Business status', statusLabel(business?.status || 'unknown')),
     definition('Registration number', business?.registration_number), definition('Operator contact', business?.contact_person_name),
     definition('Account name', profile?.full_name), definition('Account phone', profile?.phone),
     definition('Business email', business?.email), definition('Business phone', business?.phone),
-    definition('Category', statusLabel(listing.category)), definition('Island', listing.island), definition('Summary', listing.summary), definition('Description', listing.description),
-    definition('Price', `${formatMoney(listing.price, listing.currency)} ${statusLabel(listing.price_unit)}`), definition('Capacity', `${listing.available_spaces} / ${listing.max_capacity}`),
+    definition('Category', listing.listing_kind==='excursion_package'?'Excursion package':statusLabel(listing.category)), definition('Activities',displayList(listing.activity_type_slugs)),definition('Island', listing.island), definition('Summary', listing.summary), definition('Description', listing.description),
+    definition('Price', listing.pricing_mode==='components_only'?'Built from separate charges':listing.price==null?'Price on request':`${formatMoney(listing.price, listing.currency)} ${statusLabel(listing.price_unit)}`), definition('Capacity', `${listing.available_spaces} / ${listing.max_capacity}`),
     definition('Time', `${listing.start_time || 'Flexible'} – ${listing.end_time || 'Flexible'}`), definition('Meeting point', listing.meeting_point),
     definition('Included', displayList(listing.included_items)), definition('Excluded', displayList(listing.excluded_items)),
-    definition('Requirements', listing.requirements), definition('Cancellation', listing.cancellation_information), definition('Status', statusLabel(listing.status)), definition('Current review note', listing.review_note)
+    definition('Requirements', listing.requirements), definition('Cancellation', listing.cancellation_information),
+    listing.listing_kind==='excursion_package'?definition('Package duration / guests',`${packageDetails?.duration_minutes||'—'} minutes · ${packageDetails?.minimum_guests||1}–${packageDetails?.maximum_guests||'open'} guests`):null,
+    listing.listing_kind==='excursion_package'?definition('Package provisions',[packageDetails?.equipment_included?'Equipment included':null,packageDetails?.meal_included?'Meal included':null,packageDetails?.drinking_water_included?'Water included':null].filter(Boolean).join(', ')||'None specified'):null,
+    listing.listing_kind==='excursion_package'?definition('Pickup / drop-off',`${statusLabel(packageDetails?.pickup_mode||'not_available')} / ${statusLabel(packageDetails?.dropoff_mode||'not_available')} · ${packageTransfers.map((item)=>`${item.direction}: ${item.transport_locations?.name||item.location_id} (${statusLabel(item.availability)}${item.fee!=null?` ${formatMoney(item.fee,item.currency)}`:''})`).join('; ')||'No location options'}`):null,
+    definition('Status', statusLabel(listing.status)), definition('Current review note', listing.review_note)
   ] });
   try {
     const client = requireSupabase();
@@ -255,7 +277,7 @@ async function inspectListing(listing) {
       { bucket: 'listing-covers', path: listing.cover_image_path, caption: `${listing.title} cover` },
       ...(galleryResult.data || []).map((item) => ({ bucket: 'listing-gallery', path: item.storage_path, caption: item.caption }))
     ], `${listing.title} listing photo`);
-    inspectionBody.replaceChildren(details);
+    inspectionBody.replaceChildren(details,pricingReviewSection(listing));
     const facilities = renderFacilitiesView(listing, { context: 'admin' });
     if (facilities) inspectionBody.append(facilities);
     if (media.childElementCount) inspectionBody.append(createElement('h3', { text: 'Submitted media' }), media);

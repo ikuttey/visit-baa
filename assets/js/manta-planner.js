@@ -1,158 +1,133 @@
 import { nightsBetween } from './marketplace.js';
-import { requireSupabase } from './supabase-client.js';
-import { signedPublicImageUrl } from './storage.js';
+import { applyMantaOverride, normalizeSimpleAnswers, ROOM_PREFERENCES, STAY_PREFERENCES } from './manta-preferences.js';
 
 const asset='assets/images/manta-planner.png?v=5';
-const steps=['islands','activities','travelers','dates','nights','activityPlan','budget','confirm','results'];
-const state={step:0,data:null,module:null,availability:null,journey:null,resumeSelections:null,answers:{islands:[],activities:[],adults:2,children:0,rooms:1,startDate:'',endDate:'',flexible:false,nightsByIsland:{},activityPlan:{},budget:null}};
-const el=(tag,{className='',text='',attrs={},children=[]}={})=>{const node=document.createElement(tag);if(className)node.className=className;if(text!=='' )node.textContent=text;Object.entries(attrs).forEach(([key,value])=>{if(value!==null&&value!==undefined)node.setAttribute(key,String(value));});children.filter(Boolean).forEach((child)=>node.append(child));return node;};
+const steps=['island','dates','travelers','stayPreference','roomPreference','activities'];
+const defaults={islands:[],activities:[],adults:2,children:0,rooms:1,startDate:'',endDate:'',flexible:false,nightsByIsland:{},activityPlan:{},stayPreference:'none',roomPreference:'none',stayPreferenceRequired:false,roomPreferenceRequired:false,recommendationMode:'best_value',budget:null};
+const state={step:0,data:null,module:null,answers:{...defaults}};
+const el=(tag,{className='',text='',attrs={},children=[]}={})=>{const node=document.createElement(tag);if(className)node.className=className;if(text!=='')node.textContent=text;Object.entries(attrs).forEach(([key,value])=>{if(value!==null&&value!==undefined)node.setAttribute(key,String(value));});children.filter(Boolean).forEach((child)=>node.append(child));return node;};
 
 const launch=el('button',{className:'manta-planner-launch',attrs:{type:'button','aria-label':'Open Visit Baa Trip Planner'},children:[el('img',{attrs:{src:asset,alt:''}}),el('span',{className:'manta-planner-tooltip',text:'Plan your Baa trip'})]});
 const drawer=el('dialog',{className:'manta-planner-drawer',attrs:{'aria-labelledby':'mantaPlannerTitle'}});
-const title=el('header',{className:'manta-planner-titlebar',children:[el('img',{attrs:{src:asset,alt:''}}),el('div',{children:[el('strong',{text:'Visit Baa Trip Planner',attrs:{id:'mantaPlannerTitle'}}),el('small',{text:'Real Visit Baa data'})]}),el('button',{className:'manta-planner-close',text:'×',attrs:{type:'button','aria-label':'Close trip planner'}})]});
-const progressText=el('span',{className:'manta-progress-text'});const progressBar=el('span',{className:'manta-progress-bar',children:[el('i')]});
-const back=el('button',{text:'Back',attrs:{type:'button'}});const restart=el('button',{text:'Restart',attrs:{type:'button'}});const controls=el('div',{className:'manta-planner-controls',children:[back,restart]});
-const transcript=el('div',{className:'manta-transcript',attrs:{'aria-live':'polite'}});const question=el('section',{className:'manta-question'});const footer=el('div',{className:'manta-question-footer'});
-drawer.append(title,el('div',{className:'manta-planner-progress',children:[progressText,progressBar]}),controls,transcript,question,footer);document.body.append(launch,drawer);
-const pageResults=el('section',{className:'manta-page-results',attrs:{id:'mantaSearchResults','aria-labelledby':'mantaResultsTitle',hidden:''}});
-const resultsAnchor=document.querySelector('main #islands');
-if(resultsAnchor)resultsAnchor.before(pageResults);else document.querySelector('main')?.append(pageResults);
+const close=el('button',{className:'manta-planner-close',text:'×',attrs:{type:'button','aria-label':'Close trip planner'}});
+const title=el('header',{className:'manta-planner-titlebar',children:[el('img',{attrs:{src:asset,alt:''}}),el('div',{children:[el('strong',{text:'Visit Baa Trip Planner',attrs:{id:'mantaPlannerTitle'}}),el('small',{text:'Six quick choices'})]}),close]});
+const progressText=el('span',{className:'manta-progress-text'});
+const progressBar=el('span',{className:'manta-progress-bar',children:[el('i')]});
+const back=el('button',{text:'Back',attrs:{type:'button'}});
+const restart=el('button',{text:'Restart',attrs:{type:'button'}});
+const question=el('section',{className:'manta-question'});
+const footer=el('div',{className:'manta-question-footer'});
+drawer.append(title,el('div',{className:'manta-planner-progress',children:[progressText,progressBar]}),el('div',{className:'manta-planner-controls',children:[back,restart]}),question,footer);
+document.body.append(launch,drawer);
 
 function assistant(text){return el('div',{className:'manta-message assistant',children:[el('img',{attrs:{src:asset,alt:''}}),el('p',{text})]});}
-function customer(label,text){return el('div',{className:'manta-message customer',children:[el('p',{children:[el('strong',{text:`${label}: `}),document.createTextNode(text)]})]});}
 function button(text,handler,style='primary'){const node=el('button',{className:`manta-action ${style}`,text,attrs:{type:'button'}});node.addEventListener('click',handler);return node;}
 function setFooter(...nodes){footer.replaceChildren(...nodes);}
-function activityName(slug){return state.data?.activityTypes?.find((item)=>item.slug===slug)?.name||state.module?.ACTIVITY_LABELS?.[slug]||slug;}
-function initializeActivityPlan(reset=false){const previous=reset?{}:(state.answers.activityPlan||{});const plan={};state.answers.activities.forEach((slug)=>{const saved=previous[slug]||{};const island=state.answers.islands.includes(saved.island)?saved.island:state.module.recommendedActivityIsland(state.data,state.answers,slug);const maximum=Math.max(1,Number(state.answers.nightsByIsland?.[island]||1));const unit=['days','trips','times'].includes(saved.unit)?saved.unit:'days';const quantity=Math.max(1,Math.min(maximum,Number(saved.quantity??saved.days)||1));plan[slug]={island,unit,quantity,days:quantity};});state.answers.activityPlan=plan;}
-function answerSummary(step){const a=state.answers;return {islands:a.islands.join(', '),activities:a.activities.length?a.activities.map(activityName).join(', '):'No activities selected',travelers:`${a.adults} adult${a.adults===1?'':'s'} · ${a.children} children · ${a.rooms} room${a.rooms===1?'':'s'}`,dates:`${a.startDate} to ${a.endDate} · ${nightsBetween(a.startDate,a.endDate)} nights${a.flexible?' · dates flexible':''}`,nights:a.islands.map((island)=>`${island}: ${a.nightsByIsland?.[island]||0}`).join(', '),activityPlan:a.activities.map((slug)=>{const item=a.activityPlan?.[slug];const quantity=Number(item?.quantity??item?.days)||1;const unit=item?.unit||'days';const label=unit==='times'?(quantity===1?'time':'times'):(quantity===1?unit.slice(0,-1):unit);return `${activityName(slug)}: ${item?.island||a.islands[0]} · ${quantity} ${label}`;}).join('; '),budget:a.budget?`USD ${a.budget}`:'No budget'}[step]||'';}
-function shouldSkipStep(step){return(step==='nights'&&state.answers.islands.length<2)||(step==='activityPlan'&&!state.answers.activities.length);}
-function previousAnswers(){const labels={islands:'Destinations',activities:'Activities',travelers:'Travelers',dates:'Stay',nights:'Island nights',activityPlan:'Activity plan',budget:'Budget'};transcript.replaceChildren(assistant("Hi! I'm your Visit Baa trip planner. I'll ask you a few quick questions and then search real Visit Baa stays and experiences for you."));steps.slice(0,state.step).filter((step)=>!['confirm','results'].includes(step)&&!shouldSkipStep(step)).forEach((step)=>transcript.append(customer(labels[step],answerSummary(step))));}
-function visibleQuestions(){return['islands','activities','travelers','dates',...(state.answers.islands.length>1?['nights']:[]),...(state.answers.activities.length?['activityPlan']:[]),'budget'];}
-function questionSteps(){return visibleQuestions().length;}
-function updateProgress(){const key=steps[state.step];const review=['confirm','results'].includes(key);const questionIndex=Math.max(1,visibleQuestions().indexOf(key)+1);progressText.textContent=review?'Review and results':`Question ${questionIndex} of ${questionSteps()}`;progressBar.firstElementChild.style.width=`${Math.min(100,questionIndex/questionSteps()*100)}%`;back.disabled=state.step===0;}
-function go(index){const direction=index>=state.step?1:-1;let next=Math.max(0,Math.min(steps.length-1,index));while(next>0&&next<steps.length-1&&shouldSkipStep(steps[next]))next+=direction;state.step=Math.max(0,Math.min(steps.length-1,next));previousAnswers();updateProgress();render();}
-function continueStep(){go(state.step+1);}
-function carousel(track,label='options'){const previous=button('‹',()=>track.scrollBy({left:-Math.max(220,track.clientWidth*.8),behavior:'smooth'}),'icon');const next=button('›',()=>track.scrollBy({left:Math.max(220,track.clientWidth*.8),behavior:'smooth'}),'icon');previous.setAttribute('aria-label',`Previous ${label}`);next.setAttribute('aria-label',`Next ${label}`);let start=0;let scroll=0;let pointerId=null;let dragging=false;let suppressClick=false;track.addEventListener('pointerdown',(event)=>{if(event.pointerType==='touch')return;pointerId=event.pointerId;start=event.clientX;scroll=track.scrollLeft;dragging=false;});track.addEventListener('pointermove',(event)=>{if(pointerId!==event.pointerId)return;const distance=event.clientX-start;if(!dragging&&Math.abs(distance)>6){dragging=true;track.setPointerCapture(event.pointerId);}if(dragging)track.scrollLeft=scroll-distance;});track.addEventListener('pointerup',(event)=>{if(pointerId!==event.pointerId)return;suppressClick=dragging;dragging=false;pointerId=null;if(track.hasPointerCapture(event.pointerId))track.releasePointerCapture(event.pointerId);});track.addEventListener('pointercancel',()=>{dragging=false;pointerId=null;});track.addEventListener('click',(event)=>{if(!suppressClick)return;suppressClick=false;event.preventDefault();event.stopImmediatePropagation();},true);return el('div',{className:'manta-carousel',children:[previous,track,next]});}
-function chips(values,selected,onChange,{search=false}={}){const wrap=el('div',{className:'manta-chip-area'});const list=el('div',{className:'manta-chips manta-option-track',attrs:{role:'group','aria-label':'Selectable options'}});let current=[...selected];const draw=(query='',restoreScroll=null)=>{list.replaceChildren();values.filter((item)=>item.label.toLowerCase().includes(query.toLowerCase())).forEach((item)=>{const active=current.includes(item.value);const chip=el('button',{className:`manta-chip option-card${active?' selected':''}`,text:`${active?'✓ ':''}${item.label}`,attrs:{type:'button','aria-pressed':String(active)}});chip.addEventListener('click',()=>{const scrollLeft=list.scrollLeft;const changed=onChange(item.value,!active);current=Array.isArray(changed)?[...changed]:active?current.filter((value)=>value!==item.value):[...current,item.value];draw(searchBox?.value||'',scrollLeft);});list.append(chip);});if(restoreScroll!=null){list.scrollLeft=restoreScroll;requestAnimationFrame(()=>{list.scrollLeft=restoreScroll;});}};let searchBox=null;if(search){searchBox=el('input',{className:'manta-search',attrs:{type:'search',placeholder:'Search options','aria-label':'Search options'}});searchBox.addEventListener('input',()=>draw(searchBox.value));wrap.append(searchBox);}wrap.append(carousel(list));draw();return wrap;}
-function counter(label,key,min){const value=el('strong',{text:String(state.answers[key])});const change=(amount)=>{state.answers[key]=Math.max(min,state.answers[key]+amount);value.textContent=state.answers[key];};return el('div',{className:'manta-counter',children:[el('span',{text:label}),el('div',{children:[button('−',()=>change(-1),'icon'),value,button('+',()=>change(1),'icon')]})]});}
-function initializeNightAllocation(){const total=nightsBetween(state.answers.startDate,state.answers.endDate);const islands=state.answers.islands;const current=state.answers.nightsByIsland||{};if(islands.length===1){state.answers.nightsByIsland={[islands[0]]:total};return;}const valid=islands.every((island)=>Number(current[island])>=1)&&islands.reduce((sum,island)=>sum+Number(current[island]||0),0)===total;if(valid)return;const allocation=Object.fromEntries(islands.map((island)=>[island,1]));allocation[islands[0]]+=total-islands.length;state.answers.nightsByIsland=allocation;}
-function validateDates(){const a=state.answers;const today=new Date().toISOString().slice(0,10);if(!a.startDate||!a.endDate||a.startDate<today||nightsBetween(a.startDate,a.endDate)<1){showInline('Choose future arrival and departure dates. Departure must be after arrival.');return false;}if(nightsBetween(a.startDate,a.endDate)<a.islands.length){showInline('Choose enough nights to spend at least one night on each selected island.');return false;}return true;}
-function resultFeedback(){return !drawer.open&&!pageResults.hidden?pageResults.querySelector('.manta-page-feedback'):null;}
-function showInline(text,type='warning'){const host=resultFeedback()||question;let note=host.querySelector('.manta-inline');if(!note){note=el('p',{className:`manta-inline ${type}`});host.append(note);}note.className=`manta-inline ${type}`;note.textContent=text;}
-function openPlannerAt(index){if(!drawer.open){drawer.showModal();launch.hidden=true;}go(index);}
+function showInline(text,type='warning'){let note=question.querySelector('.manta-inline');if(!note){note=el('p',{className:'manta-inline'});question.append(note);}note.className=`manta-inline ${type}`;note.textContent=text;}
+function go(index){state.step=Math.max(0,Math.min(steps.length-1,index));render();}
+function next(){go(state.step+1);}
 
-function renderIslands(){question.append(assistant('Which island or islands would you like to visit?'));if(!state.data.islands.length){question.append(el('p',{className:'manta-inline warning',text:'No islands or hubs currently have active published Visit Baa data.'}));return setFooter();}question.append(chips(state.data.islands.map((name)=>({value:name,label:name})),state.answers.islands,(value,add)=>{state.answers.islands=add?[...state.answers.islands,value]:state.answers.islands.filter((item)=>item!==value);render();},{search:true}));setFooter(button('Clear',()=>{state.answers.islands=[];render();},'secondary'),button('Continue',()=>state.answers.islands.length?continueStep():showInline('Select at least one island.')));}
-function renderActivities(){question.append(assistant('What would you like to do there?'));const choices=state.module.activityChoices(state.data,state.answers.islands);if(!choices.length){question.append(el('p',{className:'manta-inline',text:'No Visit Baa experiences are currently published for this island. You can continue with accommodation.'}));return setFooter(button('Continue',()=>{state.answers.activities=[];state.answers.activityPlan={};continueStep();}));}question.append(chips(choices,state.answers.activities,(value,add)=>{state.answers.activities=add?[...state.answers.activities,value]:state.answers.activities.filter((item)=>item!==value);Object.keys(state.answers.activityPlan||{}).filter((slug)=>!state.answers.activities.includes(slug)).forEach((slug)=>delete state.answers.activityPlan[slug]);return state.answers.activities;}));setFooter(button('Skip activities for now',()=>{state.answers.activities=[];state.answers.activityPlan={};continueStep();},'secondary'),button('Continue',continueStep));}
-function renderTravelers(){question.append(assistant('How many people are travelling?'),counter('Adults','adults',1),counter('Children','children',0),counter('Rooms','rooms',1));setFooter(button('Continue',continueStep));}
-function renderDates(){question.append(assistant('When will you arrive and leave?'));const today=new Date().toISOString().slice(0,10);const start=el('input',{attrs:{type:'date',min:today,value:state.answers.startDate,'aria-label':'Arrival date'}});const end=el('input',{attrs:{type:'date',min:state.answers.startDate||today,value:state.answers.endDate,'aria-label':'Departure date'}});const nights=el('strong',{className:'manta-nights'});const update=()=>{state.answers.startDate=start.value;state.answers.endDate=end.value;end.min=start.value||today;const count=nightsBetween(start.value,end.value);nights.textContent=count?`${count} night${count===1?'':'s'}`:'';};start.addEventListener('change',update);end.addEventListener('change',update);const flexible=el('input',{attrs:{type:'checkbox'}});flexible.checked=state.answers.flexible;flexible.addEventListener('change',()=>{state.answers.flexible=flexible.checked;});question.append(el('div',{className:'manta-date-grid',children:[el('label',{text:'Arrival / check-in',children:[start]}),el('label',{text:'Departure / check-out',children:[end]})]}),nights,el('label',{className:'manta-check',children:[flexible,document.createTextNode(' My dates are flexible around this range')]}));update();setFooter(button('Continue',()=>{if(!validateDates())return;initializeNightAllocation();initializeActivityPlan();continueStep();}));}
-function renderNights(){initializeNightAllocation();question.append(assistant(`How should I split your ${nightsBetween(state.answers.startDate,state.answers.endDate)} nights between the islands?`));const total=nightsBetween(state.answers.startDate,state.answers.endDate);const status=el('p',{className:'manta-allocation-status'});const rows=el('div',{className:'manta-night-allocation'});const redraw=()=>{rows.replaceChildren();const used=state.answers.islands.reduce((sum,island)=>sum+Number(state.answers.nightsByIsland[island]||0),0);state.answers.islands.forEach((island)=>{const value=el('strong',{text:String(state.answers.nightsByIsland[island])});const change=(amount)=>{state.answers.nightsByIsland[island]=Math.max(1,Number(state.answers.nightsByIsland[island])+amount);redraw();};rows.append(el('div',{className:'manta-counter',children:[el('span',{text:island}),el('div',{children:[button('−',()=>change(-1),'icon'),value,button('+',()=>change(1),'icon')]})]}));});const remaining=total-used;status.textContent=remaining===0?`All ${total} nights allocated.`:remaining>0?`${remaining} night${remaining===1?'':'s'} still to allocate.`:`Reduce the allocation by ${Math.abs(remaining)} night${Math.abs(remaining)===1?'':'s'}.`;status.className=`manta-allocation-status${remaining===0?' complete':''}`;};redraw();question.append(rows,status);setFooter(button('Continue',()=>{const used=state.answers.islands.reduce((sum,island)=>sum+Number(state.answers.nightsByIsland[island]||0),0);if(used!==total)return showInline(`Your island allocation must total exactly ${total} nights.`);initializeActivityPlan();continueStep();}));}
-function renderActivityPlan(){
-  initializeActivityPlan();
-  question.append(assistant('How many days, trips, or times would you like to enjoy each activity?'),el('p',{className:'manta-question-support',text:'Choose the island, how you want to count the activity, and the quantity. Each occurrence is priced and added to your itinerary separately.'}));
-  const rows=el('div',{className:'manta-activity-plan'});
-  const redraw=()=>{
-    rows.replaceChildren();
-    state.answers.activities.forEach((slug)=>{
-      const plan=state.answers.activityPlan[slug];
-      const island=el('select',{attrs:{'aria-label':`${activityName(slug)} island`}});
-      state.answers.islands.forEach((name)=>{const option=el('option',{text:name,attrs:{value:name}});option.selected=name===plan.island;island.append(option);});
-      const unit=el('select',{attrs:{'aria-label':`${activityName(slug)} frequency unit`},children:[el('option',{text:'Days',attrs:{value:'days'}}),el('option',{text:'Trips',attrs:{value:'trips'}}),el('option',{text:'Times',attrs:{value:'times'}})]});
-      unit.value=plan.unit;
-      const maximum=Math.max(1,Number(state.answers.nightsByIsland[plan.island]||1));
-      const quantity=el('input',{attrs:{type:'number',min:'1',max:String(maximum),step:'1',value:String(plan.quantity),'aria-label':`${activityName(slug)} quantity`}});
-      island.addEventListener('change',()=>{plan.island=island.value;const nextMaximum=Math.max(1,Number(state.answers.nightsByIsland[plan.island]||1));plan.quantity=Math.min(Number(plan.quantity)||1,nextMaximum);plan.days=plan.quantity;redraw();});
-      unit.addEventListener('change',()=>{plan.unit=unit.value;});
-      quantity.addEventListener('change',()=>{plan.quantity=Math.max(1,Math.min(maximum,Number(quantity.value)||1));plan.days=plan.quantity;quantity.value=String(plan.quantity);});
-      rows.append(el('article',{className:'manta-activity-plan-card',children:[el('strong',{text:activityName(slug)}),el('div',{className:'manta-activity-plan-fields',children:[el('label',{text:'Island',children:[island]}),el('label',{text:'Count by',children:[unit]}),el('label',{text:'How many?',children:[quantity]})]}),el('small',{text:`Choose up to ${maximum}. Manta schedules each occurrence on a separate day during this island stay so the same availability slot is not counted twice.`})]}));
-    });
-  };
-  redraw();
-  question.append(rows);
-  setFooter(button('Let Manta plan',()=>{initializeActivityPlan(true);render();},'secondary'),button('Continue',()=>{initializeActivityPlan();continueStep();}));
-}
-function renderBudget(){question.append(assistant('Would you like to set a total budget?'));const input=el('input',{className:'manta-budget',attrs:{type:'number',min:'1',step:'1',placeholder:'Budget in USD',value:state.answers.budget||'','aria-label':'Total budget in USD'}});setFooter(button('Skip',()=>{state.answers.budget=null;continueStep();},'secondary'),button('Continue',()=>{const amount=Number(input.value);if(!Number.isFinite(amount)||amount<=0)return showInline('Enter a positive budget or choose Skip.');state.answers.budget=amount;continueStep();}));question.append(input);}
-function renderConfirm(){initializeActivityPlan();question.append(assistant("Here's what I'll search for:"),el('strong',{className:'manta-review-title',text:'YOUR TRIP REQUEST'}));const labels={islands:'Destinations',activities:'Activities',travelers:'Travelers',dates:'Stay',nights:'Island nights',activityPlan:'Activity plan',budget:'Budget'};const dl=el('dl',{className:'manta-confirm'});['islands','activities','travelers','dates',...(state.answers.islands.length>1?['nights']:[]),...(state.answers.activities.length?['activityPlan']:[]),'budget'].forEach((key)=>dl.append(el('div',{children:[el('dt',{text:labels[key]}),el('dd',{text:answerSummary(key)})]})));question.append(dl,el('p',{className:'manta-transport-note',text:'Your selected guesthouse will arrange arrival and departure transportation directly with you after confirming the stay.'}));setFooter(button('Edit answers',()=>go(0),'secondary'),button('Search Visit Baa',search));}
-
-async function search(){if(!validateDates())return;question.replaceChildren(assistant('Searching stays and experiences with published prices and live or request-based availability…'));setFooter();try{state.availability=await state.module.loadPlannerAvailability(state.answers.startDate,state.answers.endDate);state.journey=state.module.searchTripJourney(state.data,state.answers,state.availability);if(state.resumeSelections){state.journey.segments.forEach((segment)=>{const ids=state.resumeSelections[segment.id];if(!ids)return;const match=segment.candidates.findIndex((candidate)=>candidate.items.map((item)=>item.listingId).join('|')===ids);if(match>=0)segment.selected=match;});state.resumeSelections=null;syncJourney();}go(steps.indexOf('results'));}catch{question.append(el('p',{className:'manta-inline warning',text:'The planner could not complete this search right now. Your answers are still here; please try again.'}));setFooter(button('Back',()=>go(steps.indexOf('confirm')),'secondary'));}}
-function formatMoney(amount,currency){return new Intl.NumberFormat('en',{style:'currency',currency}).format(amount);}
-async function setImage(img,path){if(!path)return;try{img.src=await signedPublicImageUrl('listing-covers',path);}catch{img.remove();}}
-function candidateCard(segment,candidate,index){const selected=segment.selected===index;const replacing=segment.selected!=null&&!selected;const recommended=segment.recommended===index&&Number.isFinite(candidate.price);const first=candidate.items[0];const request=first?.availabilityMode==='request';const image=el('img',{className:'manta-result-image',attrs:{alt:first?.title||''}});if(first?.imagePath)setImage(image,first.imagePath);const operators=[...new Set(candidate.items.map((item)=>item.businessName).filter(Boolean))].join(' + ')||'Visit Baa operator';const payment=request?'No payment until availability and total are confirmed':first?.depositPercentage===100?'Full prepayment to operator':first?.depositPercentage?`${first.depositPercentage}% deposit to operator`:'Pay operator later / no deposit';const context=[first?.island,first?.date,first?.time,first?.availability,first?.priceUnit?`Priced ${String(first.priceUnit).replaceAll('_',' ')}`:'',payment].filter(Boolean).join(' · ');const published=Number(first?.publishedPrice);const price=Number.isFinite(candidate.price)?`Estimated total: ${formatMoney(candidate.price,candidate.currency)}`:Number.isFinite(published)&&first?.priceUnit!=='price_on_request'?`${formatMoney(published,candidate.currency)} ${String(first?.priceUnit||'published unit').replaceAll('_',' ')} · total pending`:'Price confirmation required · total pending';const card=el('article',{className:`manta-result-card${selected?' selected':''}${request?' request':''}`,children:[image,el('div',{className:'manta-result-copy',children:[recommended?el('span',{className:'manta-budget-pick',text:'Manta budget pick · lowest known estimate'}):null,el('small',{text:`${first?.verified?'✓ Verified · ':''}${operators}`}),el('strong',{text:first?.title||segment.title}),el('span',{text:candidate.detail}),context?el('span',{text:context}):null,first?.priceMath?el('span',{className:'manta-price-math',text:first.priceMath}):null,first?.priceNote?el('span',{className:'manta-price-note',text:first.priceNote}):null,el('b',{text:price}),el('div',{className:'manta-result-actions',children:[el('a',{text:'View listing',attrs:{href:`listing.html?id=${encodeURIComponent(first?.listingId||'')}`}}),button(selected?'Selected':replacing?'Choose this option':request?'Request availability':'Select',()=>{segment.selected=index;refreshJourney();},selected?'secondary':'primary')]})]})]});return card;}
-function syncJourney(){state.module.recalculateJourney(state.journey);}
-function refreshJourney(){syncJourney();renderPageResults();}
-function gapCard(segment){const actions=el('div',{className:'manta-gap-actions'});if(segment.kind==='activity')actions.append(button('Customize activity plan',()=>openPlannerAt(steps.indexOf('activityPlan')),'secondary'),button('Change date',()=>openPlannerAt(3),'secondary'));else actions.append(button('Change destination',()=>openPlannerAt(0),'secondary'),button('Change date',()=>openPlannerAt(3),'secondary'));return el('article',{className:'manta-gap-card',children:[el('strong',{text:segment.gapStatus||'Not currently listed'}),el('p',{text:segment.gapMessage||'No published Visit Baa listing currently matches this requirement.'}),actions]});}
-function journeyTotals(){
-  const total=el('div',{className:'manta-totals',children:[el('strong',{text:'Known-price subtotal. Transportation is arranged by the guesthouse and is not included.'})]});
-  state.journey.totals.forEach((amount,currency)=>total.append(el('span',{text:`${currency}: ${formatMoney(amount,currency)}`})));
-  if(!state.journey.totals.size)total.append(el('span',{text:'Known-price subtotal: no priced items yet.'}));
-  total.append(el('span',{text:`Pending-price items: ${state.journey.pendingPriceItems||0}`}),el('span',{text:`Missing-price items: ${state.journey.missingPriceItems||0}`}));
-  if((state.journey.pendingPriceItems||0)+(state.journey.missingPriceItems||0)>0)total.append(el('span',{text:'Final planner total: not yet available'}));
-  else total.append(el('span',{text:'Final planner total: shown in the currency subtotal above.'}));
-  if(state.journey.confirmationRequired)total.append(el('span',{text:`Availability confirmation required for ${state.journey.confirmationRequired} selected service${state.journey.confirmationRequired===1?'':'s'}.`}));
-  const usd=state.journey.totals.get('USD');
-  if(state.answers.budget&&Number.isFinite(usd)&&!(state.journey.pendingPriceItems||state.journey.missingPriceItems)&&usd>state.answers.budget)total.append(el('span',{text:`The complete USD planner total is ${formatMoney(usd-state.answers.budget,'USD')} above your selected budget.`}));
-  return total;
-}
-function selectedResultGroup(segment){
-  const section=el('section',{className:`manta-result-segment manta-selected-segment ${segment.kind}`,children:[el('h3',{text:segment.title})]});
-  if(segment.selected!=null&&segment.candidates[segment.selected]){
-    section.append(candidateCard(segment,segment.candidates[segment.selected],segment.selected));
-    section.append(button('Remove selected service',()=>{segment.selected=null;refreshJourney();},'text'));
-  }else if(!segment.candidates.length)section.append(gapCard(segment));
-  else section.append(el('p',{className:'manta-result-help',text:'No option is selected for this part of the trip. Choose one from the alternatives below.'}));
-  return section;
-}
-function alternativeResultGroup(segment){
-  const alternatives=segment.candidates.map((candidate,index)=>({candidate,index})).filter(({index})=>index!==segment.selected);
-  if(!alternatives.length&&segment.candidates.length)return null;
-  const section=el('section',{className:'manta-result-segment manta-alternative-segment',children:[el('h3',{text:segment.title})]});
-  if(alternatives.length){
-    if(segment.kind==='accommodation')section.append(el('p',{className:'manta-result-help',text:'All other matching guesthouses are available here. Choosing one updates your selected trip and total immediately.'}));
-    const grid=el('div',{className:'manta-page-option-grid'});
-    alternatives.forEach(({candidate,index})=>grid.append(candidateCard(segment,candidate,index)));
-    section.append(grid);
-  }else section.append(gapCard(segment));
-  return section;
-}
-function renderPageResults(){
-  if(!state.journey)return;
-  const selectedList=el('div',{className:'manta-page-selected-list'});
-  state.journey.segments.forEach((segment)=>selectedList.append(selectedResultGroup(segment)));
-  const alternatives=el('div',{className:'manta-page-alternatives-list'});
-  state.journey.segments.forEach((segment)=>{const group=alternativeResultGroup(segment);if(group)alternatives.append(group);});
-  if(!alternatives.children.length)alternatives.append(el('p',{className:'manta-page-empty',text:'No additional published alternatives currently match this trip.'}));
-  const actions=el('div',{className:'manta-page-actions',children:[
-    button('Edit trip details',()=>openPlannerAt(0),'secondary'),
-    state.answers.islands.length>1&&state.answers.activities.length?button('Customize activity islands and days',()=>openPlannerAt(steps.indexOf('activityPlan')),'secondary'):null,
-    button('Add selected services to My Baa Trip',saveDraft)
-  ]});
-  const incomplete=!state.journey.complete?el('div',{className:'manta-incomplete',children:[el('strong',{text:'Your itinerary is not complete yet.'}),el('p',{text:'Missing services and pending prices are shown honestly and are never counted as zero.'})]}):null;
-  const feedback=el('div',{className:'manta-page-feedback',attrs:{role:'status','aria-live':'polite'}});
-  pageResults.replaceChildren(el('div',{className:'wrap manta-page-results-inner',children:[
-    el('header',{className:'manta-page-results-head',children:[el('div',{children:[el('span',{className:'manta-page-eyebrow',text:'Your Manta trip results'}),el('h2',{text:'Selected stays and activities first.',attrs:{id:'mantaResultsTitle'}}),el('p',{text:`${answerSummary('dates')} · ${answerSummary('travelers')}`})]}),actions]}),
-    el('p',{className:'manta-transport-note',text:'Transportation is arranged directly by your selected guesthouse and is not included in this planner total.'}),
-    incomplete,
-    el('section',{className:'manta-page-selected',attrs:{'aria-labelledby':'mantaSelectedTitle'},children:[el('div',{className:'manta-page-section-head',children:[el('span',{text:'1'}),el('div',{children:[el('h2',{text:'Your selected trip',attrs:{id:'mantaSelectedTitle'}}),el('p',{text:'Manta starts with the cheapest known suitable option. Your choices and total update immediately.'})]})]}),selectedList,journeyTotals()]}),
-    el('section',{className:'manta-page-alternatives',attrs:{'aria-labelledby':'mantaAlternativesTitle'},children:[el('div',{className:'manta-page-section-head',children:[el('span',{text:'2'}),el('div',{children:[el('h2',{text:'Other available options',attrs:{id:'mantaAlternativesTitle'}}),el('p',{text:'Compare every other published stay and activity that matches your plan.'})]})]}),alternatives]}),
-    feedback
-  ]}));
-  pageResults.hidden=false;
-}
-function revealPageResults(){
-  renderPageResults();
-  if(drawer.open)drawer.close();
-  requestAnimationFrame(()=>pageResults.scrollIntoView({behavior:'smooth',block:'start'}));
-}
-function renderResultsStep(){
-  const selections=Object.fromEntries(state.journey.segments.filter((segment)=>segment.selected!=null).map((segment)=>[segment.id,segment.candidates[segment.selected].items.map((item)=>item.listingId).join('|')]));
-  sessionStorage.setItem('baa_manta_search',JSON.stringify({answers:state.answers,selections,createdAt:Date.now()}));
-  location.assign('trip-results.html');
+function optionCards(options,selected,onSelect,{multiple=false}={}){
+  const wrap=el('div',{className:'manta-choice-grid',attrs:{role:'group','aria-label':'Choose an option'}});
+  options.forEach((option)=>{
+    const active=multiple?selected.includes(option.value):selected===option.value;
+    const card=el('button',{className:`manta-choice-card${active?' selected':''}`,attrs:{type:'button','aria-pressed':String(active)},children:[el('strong',{text:`${active?'✓ ':''}${option.label}`}),option.detail?el('small',{text:option.detail}):null]});
+    card.addEventListener('click',()=>onSelect(option.value,!active));
+    wrap.append(card);
+  });
+  return wrap;
 }
 
-async function saveDraft(){const payload=state.module.plannerDraftPayload(state.answers,state.journey);let signedIn=false;try{const client=requireSupabase();const auth=await client.auth.getUser();if(auth.error)throw auth.error;if(!auth.data.user)throw new Error('SIGN_IN_REQUIRED');signedIn=true;let tripResult=await client.from('trips').select('id').eq('user_id',auth.data.user.id).eq('status','draft').order('updated_at',{ascending:false}).limit(1).maybeSingle();if(tripResult.error)throw tripResult.error;let trip=tripResult.data;if(!trip){const id=crypto.randomUUID();const created=await client.from('trips').insert({id,user_id:auth.data.user.id,...payload.trip});if(created.error)throw created.error;const fetched=await client.from('trips').select('id').eq('id',id).eq('user_id',auth.data.user.id).maybeSingle();if(fetched.error||!fetched.data)throw fetched.error||new Error('Draft ownership validation failed');trip=fetched.data;}else{const updated=await client.from('trips').update(payload.trip).eq('id',trip.id).eq('user_id',auth.data.user.id);if(updated.error)throw updated.error;const removedItems=await client.from('trip_items').delete().eq('trip_id',trip.id).eq('booking_status','not_requested');if(removedItems.error)throw removedItems.error;const removedRequirements=await client.from('trip_requirements').delete().eq('trip_id',trip.id);if(removedRequirements.error&&!['PGRST205','42P01'].includes(removedRequirements.error.code))throw removedRequirements.error;}if(payload.items.length){const inserted=await client.from('trip_items').insert(payload.items.map((item)=>({...item,trip_id:trip.id})));if(inserted.error)throw inserted.error;}if(payload.requirements.length){const inserted=await client.from('trip_requirements').insert(payload.requirements.map((item)=>({...item,trip_id:trip.id})));if(inserted.error&&!['PGRST205','42P01'].includes(inserted.error.code))throw inserted.error;}localStorage.removeItem('baa_planner_draft');showInline('Your trip has been saved as a draft. Services are not booked or reserved until you send booking requests and the operators confirm them.','success');}catch{const selections=Object.fromEntries(state.journey.segments.filter((segment)=>segment.selected!=null).map((segment)=>[segment.id,segment.candidates[segment.selected].items.map((item)=>item.listingId).join('|')]));localStorage.setItem('baa_planner_draft',JSON.stringify({answers:state.answers,selections,requirements:payload.requirements}));if(signedIn)return showInline('Your draft remains saved on this device. Online saving is temporarily unavailable.');localStorage.setItem('baa_after_auth_path','traveler-dashboard.html?resumePlanner=1');const block=el('div',{className:'manta-auth-prompt',children:[el('strong',{text:'Your draft is preserved on this device.'}),el('p',{text:'Sign in or create a traveler account to attach it to My Baa Trip. No operator has been contacted and nothing is reserved.'}),el('a',{text:'Sign in',attrs:{href:'login.html?next=traveler-dashboard.html%3FresumePlanner%3D1'}}),el('a',{text:'Create account',attrs:{href:'traveler-register.html'}})]});(resultFeedback()||question).append(block);}}
+function counter(label,key,min){
+  const value=el('strong',{text:String(state.answers[key])});
+  const change=(amount)=>{state.answers[key]=Math.max(min,state.answers[key]+amount);value.textContent=String(state.answers[key]);};
+  return el('div',{className:'manta-counter',children:[el('span',{text:label}),el('div',{children:[button('−',()=>change(-1),'icon'),value,button('+',()=>change(1),'icon')]})]});
+}
 
-function render(){question.replaceChildren();setFooter();const key=steps[state.step];({islands:renderIslands,activities:renderActivities,travelers:renderTravelers,dates:renderDates,nights:renderNights,activityPlan:renderActivityPlan,budget:renderBudget,confirm:renderConfirm,results:renderResultsStep})[key]();}
-async function load(){if(state.data)return;question.replaceChildren(assistant('Loading current published Visit Baa services…'));state.module=await import('./trip-planner-service.js');state.data=await state.module.loadPlannerData();let saved=null;try{saved=JSON.parse(localStorage.getItem('baa_planner_draft')||'null');}catch{localStorage.removeItem('baa_planner_draft');}if(saved?.answers&&new URLSearchParams(location.search).get('resumePlanner')==='1'){Object.assign(state.answers,saved.answers);delete state.answers.pickup;delete state.answers.dropoff;state.answers.nightsByIsland||={};state.answers.activityPlan||={};state.resumeSelections=saved.selections||null;}go(saved?.answers?steps.indexOf('confirm'):0);}
+function quickChange(){
+  const input=el('input',{className:'manta-quick-input',attrs:{type:'text',placeholder:'e.g. beachfront only, cheaper, better room','aria-label':'Tell Manta a quick change'}});
+  const apply=()=>{const result=applyMantaOverride(input.value,state.answers);if(!result.applied)return showInline("I didn't recognise that change yet. Try “cheaper”, “fewer operators”, “beachfront only”, or “better room”.");input.value='';showInline(`Updated: ${result.changes.join(', ')}.`,'success');};
+  input.addEventListener('keydown',(event)=>{if(event.key==='Enter'){event.preventDefault();apply();}});
+  question.append(el('details',{className:'manta-quick-change',children:[el('summary',{text:'Tell Manta a quick change'}),el('p',{text:'You can change a preference in plain language at any step.'}),el('div',{children:[input,button('Apply',apply,'secondary')]})]}));
+}
 
-launch.addEventListener('click',async()=>{if(!drawer.open){drawer.showModal();launch.hidden=true;}try{await load();}catch{question.replaceChildren(assistant('The planner could not load current Visit Baa data. Please close it and try again.'));}});drawer.querySelector('.manta-planner-close').addEventListener('click',()=>drawer.close());drawer.addEventListener('close',()=>{launch.hidden=false;launch.focus();});drawer.addEventListener('cancel',()=>{launch.hidden=false;});back.addEventListener('click',()=>go(state.step-1));restart.addEventListener('click',()=>{state.step=0;state.journey=null;state.availability=null;pageResults.hidden=true;pageResults.replaceChildren();state.answers={islands:[],activities:[],adults:2,children:0,rooms:1,startDate:'',endDate:'',flexible:false,nightsByIsland:{},activityPlan:{},budget:null};go(0);});
-drawer.addEventListener('click',(event)=>{if(event.target instanceof HTMLButtonElement&&event.target.textContent==='Search Visit Baa')pageResults.hidden=true;},true);
+function renderIsland(){
+  question.append(assistant('Which island would you like to stay on?'));
+  if(!state.data.islands.length){question.append(el('p',{className:'manta-inline warning',text:'No islands currently have active published Visit Baa data.'}));return setFooter();}
+  question.append(optionCards(state.data.islands.map((name)=>({value:name,label:name,detail:'Stay base'})),state.answers.islands[0]||'',(value)=>{state.answers.islands=[value];state.answers.nightsByIsland={};state.answers.activityPlan={};render();}));
+  setFooter(button('Continue',()=>state.answers.islands.length?next():showInline('Choose one island to continue.')));
+}
+
+function renderDates(){
+  question.append(assistant('When will you arrive and leave?'));
+  const today=new Date().toISOString().slice(0,10);
+  const start=el('input',{attrs:{type:'date',min:today,value:state.answers.startDate,'aria-label':'Arrival date'}});
+  const end=el('input',{attrs:{type:'date',min:state.answers.startDate||today,value:state.answers.endDate,'aria-label':'Departure date'}});
+  const nights=el('strong',{className:'manta-nights'});
+  const update=()=>{state.answers.startDate=start.value;state.answers.endDate=end.value;end.min=start.value||today;const count=nightsBetween(start.value,end.value);nights.textContent=count?`${count} night${count===1?'':'s'}`:'';};
+  start.addEventListener('change',update);end.addEventListener('change',update);
+  const flexible=el('input',{attrs:{type:'checkbox'}});flexible.checked=state.answers.flexible;flexible.addEventListener('change',()=>{state.answers.flexible=flexible.checked;});
+  question.append(el('div',{className:'manta-date-grid',children:[el('label',{text:'Arrival / check-in',children:[start]}),el('label',{text:'Departure / check-out',children:[end]})]}),nights,el('label',{className:'manta-check',children:[flexible,document.createTextNode(' My dates are flexible')]}));
+  update();
+  setFooter(button('Continue',()=>{const count=nightsBetween(state.answers.startDate,state.answers.endDate);if(!state.answers.startDate||!state.answers.endDate||state.answers.startDate<today||count<1)return showInline('Choose future dates with departure after arrival.');next();}));
+}
+
+function renderTravelers(){question.append(assistant('Who is travelling?'),counter('Adults','adults',1),counter('Children','children',0),counter('Rooms','rooms',1));setFooter(button('Continue',next));}
+
+function renderStayPreference(){
+  question.append(assistant('Where would you prefer to stay?'),el('p',{className:'manta-question-support',text:'This guides the ranking. It will not hide an otherwise good match unless you say “only”.'}));
+  question.append(optionCards(STAY_PREFERENCES,state.answers.stayPreference,(value)=>{state.answers.stayPreference=value;state.answers.stayPreferenceRequired=false;render();}));
+  setFooter(button('Continue',next));
+}
+
+function renderRoomPreference(){
+  question.append(assistant('What kind of room would suit you?'),el('p',{className:'manta-question-support',text:'Manta checks real available room types and rates for your group.'}));
+  question.append(optionCards(ROOM_PREFERENCES,state.answers.roomPreference,(value)=>{state.answers.roomPreference=value;state.answers.roomPreferenceRequired=false;render();}));
+  setFooter(button('Continue',next));
+}
+
+function renderActivities(){
+  question.append(assistant('What would you like to do?'),el('p',{className:'manta-question-support',text:'Choose any that interest you. Manta will plan one matching option for each.'}));
+  const choices=state.module.activityChoices(state.data);
+  if(choices.length)question.append(optionCards(choices,state.answers.activities,(value,add)=>{state.answers.activities=add?[...state.answers.activities,value]:state.answers.activities.filter((item)=>item!==value);render();},{multiple:true}));
+  else question.append(el('p',{className:'manta-inline',text:'No activities are currently published. You can still find a stay.'}));
+  setFooter(button('Find My Baa Trip',search));
+}
+
+function render(){
+  question.replaceChildren();
+  progressText.textContent=`Step ${state.step+1} of ${steps.length}`;
+  progressBar.firstElementChild.style.width=`${(state.step+1)/steps.length*100}%`;
+  back.disabled=state.step===0;
+  ({island:renderIsland,dates:renderDates,travelers:renderTravelers,stayPreference:renderStayPreference,roomPreference:renderRoomPreference,activities:renderActivities}[steps[state.step]])();
+  quickChange();
+}
+
+function search(){
+  const island=state.answers.islands[0];
+  const nights=nightsBetween(state.answers.startDate,state.answers.endDate);
+  if(!island)return go(0);
+  if(!nights)return go(1);
+  state.answers.nightsByIsland={[island]:nights};
+  state.answers.activityPlan=Object.fromEntries(state.answers.activities.map((slug)=>[slug,{island,unit:'times',quantity:1,days:1}]));
+  sessionStorage.setItem('baa_manta_search',JSON.stringify({answers:state.answers,selections:{},createdAt:Date.now()}));
+  location.href='trip-results.html';
+}
+
+async function load(){
+  if(state.data)return;
+  question.replaceChildren(assistant('Loading current published Visit Baa services…'));
+  state.module=await import('./trip-planner-service.js');
+  state.data=await state.module.loadPlannerData();
+  if(new URLSearchParams(location.search).get('resumePlanner')==='1'){
+    try{const saved=JSON.parse(localStorage.getItem('baa_planner_draft')||'null');if(saved?.answers)state.answers=normalizeSimpleAnswers({...defaults,...saved.answers});}catch{localStorage.removeItem('baa_planner_draft');}
+  }
+  render();
+}
+
+launch.addEventListener('click',async()=>{drawer.showModal();launch.hidden=true;try{await load();}catch{question.replaceChildren(el('p',{className:'manta-inline warning',text:'Current Visit Baa services could not be loaded. Please try again.'}));setFooter();}});
+close.addEventListener('click',()=>drawer.close());
+drawer.addEventListener('close',()=>{launch.hidden=false;});
+back.addEventListener('click',()=>go(state.step-1));
+restart.addEventListener('click',()=>{state.answers={...defaults,islands:[],activities:[],nightsByIsland:{},activityPlan:{}};go(0);});
 if(new URLSearchParams(location.search).get('resumePlanner')==='1'&&localStorage.getItem('baa_planner_draft'))launch.click();

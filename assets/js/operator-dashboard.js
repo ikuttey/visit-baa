@@ -8,12 +8,18 @@ import { OPERATOR_LISTING_DEFAULTS } from './facilities-config.js';
 import { FacilitiesSelector } from './facilities-ui.js';
 import { loadTransferNetwork } from './transfer-service.js';
 import { normalizeLocationKey } from './transport-locations.js';
-import { priceUnitLabel, priceUnitsForCategory } from './pricing.js';
+import { ALL_PRICE_UNITS, COMPONENT_PRESETS, calculatePriceBreakdown, componentMath, priceUnitLabel, priceUnitsForCategory } from './pricing.js';
+import { normalizeActivityTypes } from './planner-catalogs.js';
+import { LEGACY_OPERATOR_CATEGORY, normalizeServiceCategories } from './service-catalogs.js';
 
 const state = {
   user: null,
   profile: null,
+  businesses: [],
   business: null,
+  serviceCategories: [],
+  businessServices: [],
+  activityTypes: [],
   businessLookupComplete: false,
   listingContextValidated: false,
   listingSubmissionBusy: false,
@@ -35,7 +41,11 @@ const state = {
     coverFile: null,
     rooms: [],
     policy: null,
-    route: null
+    route: null,
+    packageDetails: null,
+    packageTransfers: [],
+    servicePickupLocations: [],
+    priceComponents: []
   }
 };
 const message = document.getElementById('dashboardMessage');
@@ -47,6 +57,8 @@ const facilitiesSelector = new FacilitiesSelector(document.getElementById('facil
 bindTabs();
 document.getElementById('logoutButton').addEventListener('click', () => logout().catch((error) => setMessage(message, error.message, 'error')));
 let dashboardEventsBound = false;
+let businessWorkflowStep=0;
+let listingWorkflowStep=0;
 
 function value(id) { return document.getElementById(id).value.trim(); }
 function nullable(id) { return value(id) || null; }
@@ -78,13 +90,22 @@ async function loadAll() {
   state.businessLookupComplete = false;
   state.listingContextValidated = false;
   updateListingSubmissionAvailability();
-  const [businessResult, profileResult] = await Promise.all([
-    client.from('businesses').select('*').eq('owner_id', state.user.id).maybeSingle(),
-    client.from('profiles').select('full_name,phone').eq('id', state.user.id).maybeSingle()
+  const [businessResult, profileResult,serviceResult,businessServiceResult,activityResult] = await Promise.all([
+    client.from('businesses').select('*').eq('owner_id', state.user.id).order('created_at'),
+    client.from('profiles').select('full_name,phone').eq('id', state.user.id).maybeSingle(),
+    client.from('service_categories').select('id,slug,name,listing_categories,sort_order').eq('is_active',true).order('sort_order'),
+    client.from('business_service_categories').select('business_id,service_category_id'),
+    client.from('public_activity_types').select('id,slug,name,listing_categories,sort_order').order('sort_order')
   ]);
   if (businessResult.error) throw businessResult.error;
   if (profileResult.error) throw profileResult.error;
-  state.business = businessResult.data;
+  state.businesses = businessResult.data || [];
+  state.serviceCategories=normalizeServiceCategories(serviceResult.error?[]:(serviceResult.data||[]));
+  state.businessServices=businessServiceResult.error?[]:(businessServiceResult.data||[]);
+  state.activityTypes=normalizeActivityTypes(activityResult.error?[]:(activityResult.data||[]));
+  const requested=localStorage.getItem('baa_operator_business_id');
+  if(state.business&&!state.businesses.some((item)=>item.id===state.business.id))state.business=null;
+  state.business=state.businesses.find((item)=>item.id===(state.business?.id||requested))||state.businesses[0]||null;
   state.profile = profileResult.data;
   state.businessLookupComplete = true;
   try {
@@ -93,6 +114,7 @@ async function loadAll() {
   } catch {
     state.listingContextValidated = false;
   }
+  renderBusinessWorkspace();
   renderBusiness();
 
   if (!state.business) {
@@ -116,6 +138,37 @@ async function loadAll() {
   await loadReviewsAndOffers();
   renderSummary();
   setMessage(message);
+}
+
+function selectedBusinessServiceSlugs(businessId=state.business?.id){
+  const ids=new Set(state.businessServices.filter((item)=>item.business_id===businessId).map((item)=>item.service_category_id));
+  const selected=state.serviceCategories.filter((item)=>ids.has(item.id)).map((item)=>item.slug);if(selected.length)return selected;
+  const legacy=state.businesses.find((item)=>item.id===businessId)?.category;const fallback=Object.entries(LEGACY_OPERATOR_CATEGORY).find(([,category])=>category===legacy)?.[0];return fallback?[fallback]:[];
+}
+
+function renderBusinessWorkspace(){
+  const select=document.getElementById('businessSwitcher');clear(select);
+  state.businesses.forEach((business)=>select.append(createElement('option',{text:`${business.business_name} — ${business.status.replaceAll('_',' ')}`,attrs:{value:business.id}})));
+  select.disabled=!state.businesses.length;select.value=state.business?.id||'';
+  const container=document.getElementById('myBusinessesList');clear(container);
+  if(!state.businesses.length)container.append(emptyState('No business registered','Complete the business registration form below.'));
+  state.businesses.forEach((business)=>{
+    const services=selectedBusinessServiceSlugs(business.id).map((slug)=>state.serviceCategories.find((item)=>item.slug===slug)?.name).filter(Boolean);
+    const manage=actionButton('Manage Business',()=>selectBusiness(business.id),'secondary');
+    const add=actionButton('Add Listing',async()=>{await selectBusiness(business.id);if(state.listingContextValidated)await openListingEditor();},'aqua');add.disabled=business.status!=='verified'||!business.is_active;
+    container.append(createElement('article',{className:`business-management-card${state.business?.id===business.id?' selected':''}`,children:[createElement('div',{children:[createElement('strong',{text:business.business_name}),statusBadge(business.status),createElement('span',{text:services.join(' · ')||'Service categories pending'})]}),createElement('div',{className:'form-actions',children:[manage,add,business.status==='verified'&&business.is_active?createElement('a',{className:'button small secondary',text:'View Public Page',attrs:{href:`business.html?id=${encodeURIComponent(business.id)}`}}):null]})]}));
+  });
+}
+
+async function selectBusiness(id){
+  const business=state.businesses.find((item)=>item.id===id);if(!business)return;
+  state.business=business;localStorage.setItem('baa_operator_business_id',id);closeListingEditor();renderBusinessWorkspace();renderBusiness();
+  await Promise.all([loadListings(),loadEnquiries()]);await loadAvailability();await loadReviewsAndOffers();renderSummary();
+}
+
+function renderServiceChoices(selected=[]){
+  const container=document.getElementById('operatorServiceChoices');clear(container);
+  state.serviceCategories.forEach((service)=>{const input=createElement('input',{attrs:{type:'checkbox',name:'operatorService',value:service.slug}});input.checked=selected.includes(service.slug);container.append(createElement('label',{className:'checkbox',children:[input,createElement('span',{text:service.name})]}));});
 }
 
 function renderBusiness() {
@@ -143,12 +196,14 @@ function renderBusiness() {
     document.getElementById('businessEmail').value = state.user?.email || '';
     document.getElementById('businessPhone').value = state.profile?.phone || '';
     document.getElementById('publicContact').checked = true;
+    renderServiceChoices();
     document.getElementById('businessReviewNote').hidden = true;
     document.getElementById('businessImagePreviews').replaceChildren();
     document.getElementById('resubmitBusinessButton').hidden = true;
     updateListingSubmissionAvailability();
     submitButton.textContent = 'Complete business registration';
     setMessage(document.getElementById('listingPermissionMessage'), 'Complete business registration and wait for administrator verification before creating listings.', 'warning');
+    showBusinessWorkflowStep(0);
     return;
   }
 
@@ -169,6 +224,7 @@ function renderBusiness() {
   document.getElementById('businessLongitude').value = b.longitude ?? '';
   document.getElementById('businessDescription').value = b.description || '';
   document.getElementById('publicContact').checked = b.public_contact;
+  renderServiceChoices(selectedBusinessServiceSlugs());
   submitButton.textContent = 'Save business profile';
   setMessage(document.getElementById('businessReviewNote'));
   if (b.review_note) setMessage(document.getElementById('businessReviewNote'), `Administrator note: ${b.review_note}`, b.status === 'rejected' ? 'error' : 'warning');
@@ -180,6 +236,7 @@ function renderBusiness() {
     ? 'Listings can be created after an administrator verifies this business.'
     : (!b.is_active ? 'This verified business is not active. Contact an administrator before creating listings.' : '');
   setMessage(document.getElementById('listingPermissionMessage'), allowed ? '' : permissionText, 'warning');
+  showBusinessWorkflowStep(0);
 }
 
 function updateListingSubmissionAvailability() {
@@ -204,6 +261,7 @@ async function loadAuthenticatedListingBusiness(client) {
     const { data: business, error: businessError } = await client
       .from('businesses')
       .select('id,owner_id,status,is_active,island')
+      .eq('id',state.business?.id||'00000000-0000-0000-0000-000000000000')
       .eq('owner_id', user.id)
       .maybeSingle();
     if (businessError) throw new Error(`Unable to load the business linked to your account: ${businessError.message}`);
@@ -211,6 +269,7 @@ async function loadAuthenticatedListingBusiness(client) {
     validateListingSubmissionContext(user, business);
     state.user = user;
     state.business = { ...state.business, ...business };
+    state.businesses=state.businesses.map((item)=>item.id===business.id?{...item,...business}:item);
     state.listingContextValidated = true;
     return { user, business };
   } finally {
@@ -291,13 +350,14 @@ function renderListings() {
     const actions = createElement('div', { className: 'table-actions' });
     const editLabel = listingEditAction(listing.status);
     if (editLabel) actions.append(actionButton(editLabel, () => openListingEditor(listing), 'secondary'));
+    actions.append(actionButton('Duplicate Listing',()=>duplicateListing(listing),'secondary'));
     if (['draft', 'changes_requested', 'rejected', 'paused'].includes(listing.status)) actions.append(actionButton('Submit for review', () => submitListing(listing.id), 'aqua'));
     if (listing.status === 'published') actions.append(actionButton('Pause', () => pauseListing(listing.id), 'secondary'));
     actions.append(actionButton('Delete', () => deleteListing(listing), 'danger'));
     body.append(createElement('tr', { children: [
       createElement('td', { children: [createElement('strong', { text: listing.title }), createElement('div', { text: listing.island }), listing.review_note && listing.status !== 'published' ? createElement('small', { className: 'listing-review-note', text: `Administrator note: ${listing.review_note}` }) : null] }),
       createElement('td', { text: listing.category.replaceAll('_', ' ') }),
-      createElement('td', { text: formatMoney(listing.price, listing.currency) }),
+      createElement('td', { text: listing.pricing_mode==='components_only'?'Built from separate charges':listing.price==null?'Price on request':formatMoney(listing.price, listing.currency) }),
       createElement('td', { children: [statusBadge(listing.status)] }),
       createElement('td', { children: [actions] })
     ] }));
@@ -317,16 +377,184 @@ function actionButton(text, handler, style = 'secondary') {
   return button;
 }
 
+function tagWorkflowField(id,kind,step){const node=document.getElementById(id);const target=node?.matches('.field,fieldset,section')?node:(node?.closest('.field')||node);if(target)target.dataset[`${kind}WorkflowStep`]=String(step);}
+
+function initializeWorkflows(){
+  ['businessName','businessIsland','businessEmail','businessPhone','businessDescription','businessLogo','businessGallery','businessImagePreviews'].forEach((id)=>tagWorkflowField(id,'business',0));
+  tagWorkflowField('operatorServiceChoices','business',1);
+  ['contactPersonName','registrationNumber','websiteUrl','businessAddress','businessLatitude','businessLongitude','publicContact','businessRegistrationAgreements'].forEach((id)=>tagWorkflowField(id,'business',2));
+  tagWorkflowField('businessReviewSummary','business',3);
+  ['listingTitle','listingCategory','listingKind','listingIsland','listingSummary','listingDescription','listingActivityFields'].forEach((id)=>tagWorkflowField(id,'listing',0));
+  ['listingStartTime','listingEndTime','listingMaxCapacity','listingAvailableSpaces','meetingPoint','activityScheduleFields','activityPickupLocationsField','packageFields','accommodationFields','accommodationPolicyFields','transferRouteFields','roomTypesSection'].forEach((id)=>tagWorkflowField(id,'listing',1));
+  ['listingPrice','listingCurrency','listingPriceUnit','listingGroupCapacityField','listingPricePreview','listingChildPrice','listingTaxes','listingFees','componentPricingFields'].forEach((id)=>tagWorkflowField(id,'listing',2));
+  ['includedItems','excludedItems','requirements','cancellationInformation','facilitiesSelector'].forEach((id)=>tagWorkflowField(id,'listing',3));
+  ['listingLatitude','listingLongitude','listingCover','listingGallery','listingMediaEditor','listingReviewSummary'].forEach((id)=>tagWorkflowField(id,'listing',4));
+}
+
+function showBusinessWorkflowStep(step=0){
+  businessWorkflowStep=Math.max(0,Math.min(3,step));
+  document.querySelectorAll('[data-business-workflow-step]').forEach((node)=>{node.hidden=Number(node.dataset.businessWorkflowStep)!==businessWorkflowStep;});
+  document.querySelectorAll('[data-business-step]').forEach((button)=>button.classList.toggle('active',Number(button.dataset.businessStep)===businessWorkflowStep));
+  document.getElementById('businessStepBack').hidden=businessWorkflowStep===0;
+  document.getElementById('businessStepNext').hidden=businessWorkflowStep===3;
+  document.getElementById('businessSubmitButton').hidden=businessWorkflowStep!==3;
+  if(businessWorkflowStep===3)renderBusinessReviewSummary();
+}
+
+function renderBusinessReviewSummary(){
+  const services=[...document.querySelectorAll('[name="operatorService"]:checked')].map((input)=>state.serviceCategories.find((item)=>item.slug===input.value)?.name||input.value);
+  const host=document.getElementById('businessReviewSummary');host.hidden=false;host.replaceChildren(
+    createElement('span',{className:'eyebrow',text:'Review before submission'}),createElement('h3',{text:value('businessName')||'Business name required'}),
+    createElement('dl',{className:'review-definition-list',children:[createElement('div',{children:[createElement('dt',{text:'Island'}),createElement('dd',{text:value('businessIsland')})]}),createElement('div',{children:[createElement('dt',{text:'Services'}),createElement('dd',{text:services.join(', ')||'Select at least one service'})]}),createElement('div',{children:[createElement('dt',{text:'Verification'}),createElement('dd',{text:value('registrationNumber')||'Registration number required'})]})]})
+  );
+}
+
+function showListingWorkflowStep(step=0){
+  listingWorkflowStep=Math.max(0,Math.min(4,step));
+  document.querySelectorAll('[data-listing-workflow-step]').forEach((node)=>{node.hidden=Number(node.dataset.listingWorkflowStep)!==listingWorkflowStep;});
+  document.querySelectorAll('[data-listing-step]').forEach((button)=>button.classList.toggle('active',Number(button.dataset.listingStep)===listingWorkflowStep));
+  document.getElementById('listingStepBack').hidden=listingWorkflowStep===0;
+  document.getElementById('listingStepNext').hidden=listingWorkflowStep===4;
+  document.getElementById('listingSaveButton').hidden=listingWorkflowStep!==4;
+  if(listingWorkflowStep===4)renderListingReviewSummary();
+}
+
+function renderListingReviewSummary(){
+  const host=document.getElementById('listingReviewSummary');host.hidden=false;host.replaceChildren(createElement('span',{className:'eyebrow',text:'Preview as Customer'}),createElement('h3',{text:value('listingTitle')||'Untitled listing'}),createElement('p',{text:`Provided by ${state.business?.business_name||'your business'} · ${value('listingIsland')}` }));
+  const preview=document.getElementById('operatorPricePreview').cloneNode(true);preview.removeAttribute('id');host.append(preview);
+}
+
+function allowedListingTypes(){
+  const allowed=new Set(state.serviceCategories.filter((service)=>selectedBusinessServiceSlugs().includes(service.slug)).flatMap((service)=>service.listing_categories||[]));
+  return[
+    {label:'Accommodation',category:'accommodation',kind:'standard'},
+    {label:'Activity / Excursion',category:allowed.has('excursion')?'excursion':[...allowed].find((item)=>['snorkelling','diving','fishing','watersports','conservation_experience','community_experience'].includes(item)),kind:'standard'},
+    {label:'Excursion Package',category:'excursion',kind:'excursion_package',requires:'excursion'},
+    {label:'Transport',category:'transfer',kind:'standard'},
+    {label:'Food / Dining',category:'food_dining',kind:'standard'},
+    {label:'Other Service',category:'other',kind:'standard'}
+  ].filter((item)=>item.category&&allowed.has(item.requires||item.category));
+}
+
+function renderListingTypeCards(editing=false){
+  const chooser=document.getElementById('listingTypeChooser');const form=document.getElementById('listingForm');const cards=document.getElementById('listingTypeCards');clear(cards);
+  chooser.hidden=editing;form.hidden=!editing;
+  allowedListingTypes().forEach((item)=>{const card=createElement('button',{className:'listing-type-card',attrs:{type:'button'},children:[createElement('strong',{text:item.label}),createElement('span',{text:`Create for ${state.business?.business_name||'selected business'}`})]});card.addEventListener('click',()=>{document.getElementById('listingCategory').value=item.category;document.getElementById('listingKind').value=item.kind;chooser.hidden=true;form.hidden=false;handleListingCategoryChange();handleListingKindChange();showListingWorkflowStep(0);});cards.append(card);});
+}
+
+function componentDraftListing(){return{id:value('listingId')||null,business_id:state.business?.id,category:value('listingCategory'),pricing_mode:value('listingPricingMode'),price:value('listingPricingMode')==='components_only'?null:numberOrNull('listingPrice'),currency:value('listingCurrency')||'USD',price_unit:value('listingPriceUnit')||'price_on_request',price_unit_confirmed:true,group_capacity:numberOrNull('listingGroupCapacity'),child_price:numberOrNull('listingChildPrice'),price_components:state.listingEditor.priceComponents};}
+
+function addPriceComponent(custom=false){
+  const preset=custom?COMPONENT_PRESETS.at(-1):COMPONENT_PRESETS[0];state.listingEditor.priceComponents.push({id:crypto.randomUUID(),component_type:preset.type,name:preset.name,charge_status:'required',amount:null,currency:value('listingCurrency')||'USD',price_unit:'per_person',group_capacity:null,customer_description:null,sort_order:state.listingEditor.priceComponents.length,tiers:[],isNew:true});renderPriceComponents();
+}
+
+function syncPickupPriceComponent(){
+  const mode=value('activityPickupMode');let component=state.listingEditor.priceComponents.find((item)=>item.component_type==='pickup');
+  if(mode==='not_available'){if(component)state.listingEditor.priceComponents=state.listingEditor.priceComponents.filter((item)=>item!==component);}
+  else if(!component){component={id:crypto.randomUUID(),component_type:'pickup',name:'Pickup',charge_status:mode==='included'?'included':'required',amount:null,currency:value('listingCurrency')||'USD',price_unit:mode==='included'?null:'per_trip',group_capacity:null,customer_description:null,sort_order:state.listingEditor.priceComponents.length,tiers:[],isNew:true};state.listingEditor.priceComponents.push(component);}
+  else component.charge_status=mode==='included'?'included':'required';updatePickupLocationVisibility();renderPriceComponents();
+}
+
+function updatePickupLocationVisibility(){document.getElementById('activityPickupLocationsField').hidden=value('listingKind')==='excursion_package'||value('activityPickupMode')==='not_available';}
+
+function renderPriceComponents(){
+  const host=document.getElementById('listingPriceComponents');clear(host);
+  state.listingEditor.priceComponents.forEach((component,index)=>{
+    const type=createElement('select',{children:COMPONENT_PRESETS.map((preset)=>{const option=new Option(preset.name,preset.type);option.selected=preset.type===component.component_type;return option;})});
+    const name=createElement('input',{attrs:{value:component.name,maxlength:'120','aria-label':'Charge name'}});
+    const status=createElement('select',{children:[new Option('Included','included'),new Option('Required extra','required'),new Option('Optional extra','optional')]});status.value=component.charge_status;
+    const price=createElement('input',{attrs:{type:'number',min:'0',step:'0.01',value:component.amount??'','aria-label':'Charge price'}});
+    const currency=createElement('select',{children:[new Option('USD','USD'),new Option('MVR','MVR')]});currency.value=component.currency||'USD';
+    const unit=createElement('select',{children:ALL_PRICE_UNITS.map((code)=>new Option(priceUnitLabel(code),code))});unit.value=component.price_unit||'per_person';
+    const groupCapacity=createElement('input',{attrs:{type:'number',min:'1',value:component.group_capacity??(Number(value('listingMaxCapacity'))||1),'aria-label':'People covered by one group price'}});
+    const tierList=createElement('div',{className:'price-tier-list',children:(component.tiers||[]).map((tier,tierIndex)=>createElement('span',{children:[document.createTextNode(`${tier.minimum_guests}–${tier.maximum_guests}: ${formatMoney(tier.amount,component.currency)} ${tier.calculation_kind==='fixed_total'?'total':priceUnitLabel(component.price_unit).toLowerCase()}`),actionButton('×',()=>{component.tiers.splice(tierIndex,1);renderPriceComponents();},'text')]}))});
+    const fields=createElement('div',{className:'price-component-fields',children:[type,name,status,price,currency,unit,groupCapacity]});
+    const advanced=actionButton('Advanced Pricing',()=>addPriceTier(component),'secondary');
+    const remove=actionButton('Remove',()=>{state.listingEditor.priceComponents.splice(index,1);renderPriceComponents();},'danger');
+    const sync=()=>{component.component_type=type.value;const preset=COMPONENT_PRESETS.find((item)=>item.type===type.value);if(!name.value.trim()||COMPONENT_PRESETS.some((item)=>item.name===name.value))name.value=preset?.name||name.value;component.name=name.value.trim();component.charge_status=status.value;component.amount=status.value==='included'?null:(price.value===''?null:Number(price.value));component.currency=currency.value;component.price_unit=status.value==='included'?null:unit.value;component.group_capacity=component.price_unit==='per_group'?Number(groupCapacity.value)||1:null;price.hidden=currency.hidden=unit.hidden=status.value==='included';groupCapacity.hidden=status.value==='included'||unit.value!=='per_group';renderOperatorPricePreview();};
+    [type,status,currency,unit].forEach((control)=>control.addEventListener('change',sync));[name,price,groupCapacity].forEach((control)=>control.addEventListener('input',sync));sync();
+    host.append(createElement('article',{className:`price-component-card ${component.charge_status}`,children:[fields,tierList,createElement('div',{className:'form-actions',children:[advanced,remove]})]}));
+  });
+  renderOperatorPricePreview();
+}
+
+function addPriceTier(component){
+  const range=window.prompt('Guest range for this operator-entered rate (example: 1-4):','1-4');if(!range)return;const match=range.match(/^\s*(\d+)\s*-\s*(\d+)\s*$/);if(!match)return setMessage(message,'Use a guest range such as 1-4.','error');
+  const minimum=Number(match[1]);const maximum=Number(match[2]);if(maximum<minimum||(component.tiers||[]).some((tier)=>minimum<=tier.maximum_guests&&maximum>=tier.minimum_guests))return setMessage(message,'Advanced price tiers cannot overlap.','error');
+  const rate=Number(window.prompt(`Operator-entered rate in ${component.currency}:`,String(component.amount??'')));if(!Number.isFinite(rate)||rate<0)return setMessage(message,'Enter a valid tier price.','error');
+  const fixed=window.confirm('Choose OK for a fixed total for this guest range. Choose Cancel for a per-unit rate.');component.tiers.push({id:crypto.randomUUID(),minimum_guests:minimum,maximum_guests:maximum,amount:rate,calculation_kind:fixed?'fixed_total':'per_unit',sort_order:component.tiers.length});renderPriceComponents();
+}
+
+function updateComponentPricingControls(){
+  const componentsOnly=value('listingPricingMode')==='components_only';const mainIds=['listingPrice','listingCurrency','listingPriceUnit','listingGroupCapacityField','listingPricePreview','listingChildPrice'];mainIds.forEach((id)=>{const node=document.getElementById(id);const target=node?.closest('.field')||node;if(target)target.hidden=componentsOnly;});
+  document.getElementById('priceIncludesEverything').closest('.field').hidden=componentsOnly;
+  const advanced=componentsOnly||value('priceIncludesEverything')==='no';document.getElementById('addPriceComponent').hidden=!advanced;document.getElementById('addCustomPriceComponent').hidden=!advanced;
+  document.getElementById('listingPrice').required=!componentsOnly&&value('listingPriceUnit')!=='price_on_request';renderPriceComponents();
+}
+
+function renderOperatorPricePreview(){
+  const host=document.getElementById('operatorPricePreview');if(!host)return;const listing=componentDraftListing();const result=calculatePriceBreakdown(listing,{adults:Number(document.getElementById('previewAdults').value)||1,children:Number(document.getElementById('previewChildren').value)||0});clear(host);
+  host.append(createElement('span',{className:'eyebrow',text:'Preview as Customer'}),createElement('strong',{text:`${document.getElementById('previewAdults').value||1} adults` }));
+  result.lines.forEach((line)=>host.append(createElement('div',{className:'price-breakdown-line',children:[createElement('span',{text:`${line.name} · ${line.status==='optional'?'Optional':line.status==='included'?'Included':'Required'}`}),createElement('strong',{text:line.pending?'Price on request':line.status==='included'?'Included':`${formatMoney(line.amount,line.currency||result.currency)} · ${componentMath(line)}`})]})));
+  host.append(createElement('div',{className:'price-breakdown-total',children:[createElement('span',{text:'Required Total'}),createElement('strong',{text:result.requiredTotal==null?'Price confirmation required':formatMoney(result.requiredTotal,result.currency)})]}));
+}
+
+async function loadPriceComponents(client,listingId){
+  const {data,error}=await client.from('listing_price_components').select('*,listing_price_tiers(*)').eq('listing_id',listingId).order('sort_order');
+  if(error&&['PGRST204','PGRST205','42P01','42703'].includes(error.code)){state.listingEditor.priceComponents=[];return;}if(error)throw error;
+  state.listingEditor.priceComponents=(data||[]).map((component)=>({...component,tiers:component.listing_price_tiers||[]}));
+}
+
+function validatePriceComponents(){
+  const mode=value('listingPricingMode');const components=state.listingEditor.priceComponents;
+  if(mode==='components_only'&&!components.some((component)=>component.charge_status==='required'))throw new Error('Component-only pricing needs at least one required charge.');
+  for(const component of components){if(!component.name?.trim())throw new Error('Every charge needs a name.');if(component.charge_status!=='included'&&component.price_unit!=='price_on_request'&&!Number.isFinite(Number(component.amount)))throw new Error(`Enter the operator price for ${component.name}.`);}
+}
+
+async function persistPriceComponents(client,listingId){
+  validatePriceComponents();const removed=await client.from('listing_price_components').delete().eq('listing_id',listingId);if(removed.error)throw removed.error;
+  for(const [index,component] of state.listingEditor.priceComponents.entries()){
+    const payload={id:component.id,listing_id:listingId,component_type:component.component_type,name:component.name.trim(),charge_status:component.charge_status,amount:component.charge_status==='included'||component.price_unit==='price_on_request'?null:Number(component.amount),currency:component.currency,price_unit:component.charge_status==='included'?null:component.price_unit,group_capacity:component.price_unit==='per_group'?Number(component.group_capacity||numberOrNull('listingMaxCapacity')||1):null,customer_description:component.customer_description||null,is_active:true,sort_order:index};
+    const saved=await client.from('listing_price_components').insert(payload);if(saved.error)throw saved.error;
+    if(component.tiers?.length){const tiers=await client.from('listing_price_tiers').insert(component.tiers.map((tier,tierIndex)=>({id:tier.id,component_id:component.id,minimum_guests:Number(tier.minimum_guests),maximum_guests:Number(tier.maximum_guests),amount:Number(tier.amount),calculation_kind:tier.calculation_kind,sort_order:tierIndex})));if(tiers.error)throw tiers.error;}
+  }
+}
+
+function syncPackagePricingComponents(){
+  if(value('listingKind')!=='excursion_package')return;
+  const sync=(direction,modeId,feeId)=>{const mode=value(modeId);const name=direction==='pickup'?'Package pickup':'Package drop-off';let component=state.listingEditor.priceComponents.find((item)=>item.name===name);if(['not_available','meet_at_provider','same_as_pickup'].includes(mode)){if(component)state.listingEditor.priceComponents=state.listingEditor.priceComponents.filter((item)=>item!==component);return;}if(!component){component={id:crypto.randomUUID(),component_type:direction==='pickup'?'pickup':'transfer',name,charge_status:mode==='included'?'included':'optional',amount:null,currency:value('listingCurrency')||'USD',price_unit:mode==='included'?null:'per_trip',group_capacity:null,customer_description:null,sort_order:state.listingEditor.priceComponents.length,tiers:[]};state.listingEditor.priceComponents.push(component);}component.charge_status=mode==='included'?'included':'optional';component.amount=mode==='extra_charge'?numberOrNull(feeId):null;component.price_unit=mode==='extra_charge'?'per_trip':null;};
+  sync('pickup','packagePickupMode','packagePickupFee');sync('dropoff','packageDropoffMode','packageDropoffFee');
+  const included=[['packageEquipmentIncluded','snorkelling_equipment','Equipment'],['packageMealIncluded','food_drink','Meal'],['packageWaterIncluded','food_drink','Drinking water']];
+  included.forEach(([controlId,type,name])=>{let component=state.listingEditor.priceComponents.find((item)=>item.name===name);if(document.getElementById(controlId).checked){if(!component)state.listingEditor.priceComponents.push({id:crypto.randomUUID(),component_type:type,name,charge_status:'included',amount:null,currency:value('listingCurrency')||'USD',price_unit:null,group_capacity:null,customer_description:null,sort_order:state.listingEditor.priceComponents.length,tiers:[]});else{component.charge_status='included';component.amount=null;component.price_unit=null;}}else if(component?.charge_status==='included')state.listingEditor.priceComponents=state.listingEditor.priceComponents.filter((item)=>item!==component);});
+}
+
 function bindEvents() {
   if (dashboardEventsBound) return;
   dashboardEventsBound = true;
+  initializeWorkflows();showBusinessWorkflowStep(0);
   document.getElementById('availableDate').min = new Date().toISOString().slice(0, 10);
   document.getElementById('newListingButton').addEventListener('click', () => openListingEditor());
+  document.getElementById('businessSwitcher').addEventListener('change',(event)=>selectBusiness(event.target.value).catch((error)=>setMessage(message,error.message,'error')));
+  document.getElementById('registerAnotherBusiness').addEventListener('click',()=>{state.business=null;renderBusinessWorkspace();renderBusiness();document.querySelector('[data-tab="business"]').click();businessForm.scrollIntoView({behavior:'smooth',block:'start'});});
+  document.getElementById('businessStepBack').addEventListener('click',()=>showBusinessWorkflowStep(businessWorkflowStep-1));
+  document.getElementById('businessStepNext').addEventListener('click',()=>showBusinessWorkflowStep(businessWorkflowStep+1));
+  document.querySelectorAll('[data-business-step]').forEach((button)=>button.addEventListener('click',()=>showBusinessWorkflowStep(Number(button.dataset.businessStep))));
   document.getElementById('resubmitBusinessButton').addEventListener('click', resubmitBusiness);
   document.getElementById('closeListingEditor').addEventListener('click', closeListingEditor);
   document.getElementById('cancelListingButton').addEventListener('click', closeListingEditor);
   document.getElementById('listingCategory').addEventListener('change', handleListingCategoryChange);
+  document.getElementById('listingKind').addEventListener('change',handleListingKindChange);
+  document.getElementById('listingStepBack').addEventListener('click',()=>showListingWorkflowStep(listingWorkflowStep-1));
+  document.getElementById('listingStepNext').addEventListener('click',()=>showListingWorkflowStep(listingWorkflowStep+1));
+  document.querySelectorAll('[data-listing-step]').forEach((button)=>button.addEventListener('click',()=>showListingWorkflowStep(Number(button.dataset.listingStep))));
+  document.getElementById('listingPricingMode').addEventListener('change',updateComponentPricingControls);
+  document.getElementById('priceIncludesEverything').addEventListener('change',updateComponentPricingControls);
+  document.getElementById('activityPickupMode').addEventListener('change',syncPickupPriceComponent);
+  document.getElementById('addPriceComponent').addEventListener('click',()=>addPriceComponent(false));
+  document.getElementById('addCustomPriceComponent').addEventListener('click',()=>addPriceComponent(true));
+  ['previewAdults','previewChildren'].forEach((id)=>document.getElementById(id).addEventListener('input',renderOperatorPricePreview));
   ['listingPrice','listingCurrency','listingPriceUnit','listingGroupCapacity'].forEach((id)=>document.getElementById(id).addEventListener('input',updatePricingPreview));
+  document.getElementById('listingCurrency').addEventListener('change',()=>{state.listingEditor.priceComponents.forEach((component)=>{component.currency=value('listingCurrency');});renderPriceComponents();});
   document.getElementById('listingPriceUnit').addEventListener('change',updatePricingControls);
   document.getElementById('availabilityListing').addEventListener('change', updateAvailabilityMode);
   document.getElementById('addRoomType').addEventListener('click', () => openRoomEditor());
@@ -417,11 +645,13 @@ async function saveBusiness(event) {
   try {
     setBusy(button, true, creating ? 'Submitting…' : 'Saving…');
     const client = requireSupabase();
+    const selectedServiceSlugs=[...document.querySelectorAll('[name="operatorService"]:checked')].map((input)=>input.value);
+    if(!selectedServiceSlugs.length)throw new Error('Select at least one service this business provides.');
     const logoFiles = validateImages(document.getElementById('businessLogo').files, { multiple: false });
     const galleryFiles = validateImages(document.getElementById('businessGallery').files);
     const payload = {
       contact_person_name: value('contactPersonName'), business_name: value('businessName'), registration_number: value('registrationNumber'),
-      category: value('operatorCategory'), island: value('businessIsland'), email: value('businessEmail'), phone: value('businessPhone'),
+      category: LEGACY_OPERATOR_CATEGORY[selectedServiceSlugs[0]]||value('operatorCategory'), island: value('businessIsland'), email: value('businessEmail'), phone: value('businessPhone'),
       business_address: value('businessAddress'), website_url: nullable('websiteUrl'), description: value('businessDescription'),
       latitude: numberOrNull('businessLatitude'), longitude: numberOrNull('businessLongitude'),
       public_contact: document.getElementById('publicContact').checked,
@@ -441,6 +671,13 @@ async function saveBusiness(event) {
     if (error) throw error;
     state.business = data;
     businessCreated = creating;
+    if(creating)localStorage.setItem('baa_operator_business_id',data.id);
+    const selectedServiceIds=state.serviceCategories.filter((item)=>selectedServiceSlugs.includes(item.slug)).map((item)=>item.id);
+    const added=await client.from('business_service_categories').upsert(selectedServiceIds.map((service_category_id)=>({business_id:data.id,service_category_id})),{onConflict:'business_id,service_category_id'});
+    if(added.error)throw added.error;
+    for(const existing of state.businessServices.filter((item)=>item.business_id===data.id&&!selectedServiceIds.includes(item.service_category_id))){
+      const removed=await client.from('business_service_categories').delete().eq('business_id',data.id).eq('service_category_id',existing.service_category_id);if(removed.error)throw removed.error;
+    }
 
     if (creating && logoFiles[0]) {
       const logoPath = await uploadImage('business-logos', logoFiles[0], state.user.id, state.business.id);
@@ -461,8 +698,7 @@ async function saveBusiness(event) {
     }
 
     businessForm.reset();
-    if (creating) await loadAll();
-    else renderBusiness();
+    await loadAll();
     setMessage(message, creating ? 'Business registration submitted for administrator review.' : 'Business profile saved.', 'success');
   } catch (error) {
     if (businessCreated) {
@@ -502,10 +738,57 @@ function toggleAccommodationFields() {
 }
 
 function handleListingCategoryChange() {
+  if(value('listingCategory')!=='excursion'&&value('listingKind')==='excursion_package')document.getElementById('listingKind').value='standard';
   toggleAccommodationFields();
+  handleListingKindChange();
   updatePricingControls();
   if (value('listingCategory') === 'transfer' && !document.querySelector('[name="routeDay"]:checked')) resetTransferRouteFields();
   facilitiesSelector.switchCategory(value('listingCategory'));
+}
+
+function handleListingKindChange(){
+  const packageMode=value('listingKind')==='excursion_package';
+  if(packageMode&&value('listingCategory')!=='excursion')document.getElementById('listingCategory').value='excursion';
+  document.getElementById('packageFields').hidden=!packageMode;
+  document.getElementById('listingKind').querySelector('[value="excursion_package"]').disabled=value('listingCategory')!=='excursion'&&!packageMode;
+  ['packageDuration','packageMinimumGuests','packageMaximumGuests'].forEach((id)=>{document.getElementById(id).required=packageMode;});
+  updatePickupLocationVisibility();
+}
+
+function renderListingActivityChoices(selected=[]){
+  const container=document.getElementById('listingActivityChoices');clear(container);
+  state.activityTypes.forEach((activity)=>{const input=createElement('input',{attrs:{type:'checkbox',name:'listingActivity',value:activity.slug}});input.checked=selected.includes(activity.slug);container.append(createElement('label',{className:'checkbox',children:[input,createElement('span',{text:activity.name})]}));});
+}
+
+function renderPackageLocationChoices(transfers=[]){
+  for(const direction of ['pickup','dropoff']){
+    const container=document.getElementById(direction==='pickup'?'packagePickupLocations':'packageDropoffLocations');clear(container);
+    state.transportLocations.filter((item)=>item.location_type==='island'||item.location_type==='airport').forEach((location)=>{const input=createElement('input',{attrs:{type:'checkbox',name:`package${direction}`,value:location.id}});input.checked=transfers.some((item)=>item.direction===direction&&item.location_id===location.id);container.append(createElement('label',{className:'checkbox',children:[input,createElement('span',{text:location.name})]}));});
+  }
+}
+
+function renderServicePickupLocationChoices(selected=[]){
+  const selectedIds=new Set(selected.map((item)=>item.location_id));const container=document.getElementById('activityPickupLocations');clear(container);
+  state.transportLocations.filter((item)=>item.location_type==='island'||item.location_type==='airport').forEach((location)=>{const input=createElement('input',{attrs:{type:'checkbox',name:'activityPickupLocation',value:location.id}});input.checked=selectedIds.has(location.id);container.append(createElement('label',{className:'checkbox',children:[input,createElement('span',{text:location.name})]}));});
+  updatePickupLocationVisibility();
+}
+
+async function loadServicePickupLocations(client,listingId){
+  const {data,error}=await client.from('listing_service_pickup_locations').select('location_id,sort_order').eq('listing_id',listingId).order('sort_order');
+  if(error&&['PGRST204','PGRST205','42P01','42703'].includes(error.code))state.listingEditor.servicePickupLocations=[];else if(error)throw error;else state.listingEditor.servicePickupLocations=data||[];
+  renderServicePickupLocationChoices(state.listingEditor.servicePickupLocations);
+}
+
+async function persistServicePickupLocations(client,listingId){
+  const removed=await client.from('listing_service_pickup_locations').delete().eq('listing_id',listingId);if(removed.error)throw removed.error;
+  if(value('listingKind')==='excursion_package'||value('activityPickupMode')==='not_available')return;
+  const selected=[...document.querySelectorAll('[name="activityPickupLocation"]:checked')];if(!selected.length)throw new Error('Select at least one pickup island or location.');
+  const inserted=await client.from('listing_service_pickup_locations').insert(selected.map((input,index)=>({listing_id:listingId,location_id:input.value,sort_order:index})));if(inserted.error)throw inserted.error;
+}
+
+function updateListingCategoryOptions(currentCategory=''){
+  const allowed=new Set(state.serviceCategories.filter((service)=>selectedBusinessServiceSlugs().includes(service.slug)).flatMap((service)=>service.listing_categories||[]));
+  document.querySelectorAll('#listingCategory option').forEach((option)=>{option.disabled=!allowed.has(option.value)&&option.value!==currentCategory;});
 }
 
 function updatePricingControls(){
@@ -515,9 +798,9 @@ function updatePricingControls(){
   if(units.includes(current))select.value=current;
   else if(legacy){select.append(new Option(`${priceUnitLabel(current)} — operator update required`,current));select.value=current;}
   else select.value='';
-  const request=select.value==='price_on_request';const price=document.getElementById('listingPrice');price.required=!request;price.disabled=request;if(request)price.value='';
+  const componentsOnly=value('listingPricingMode')==='components_only';const request=select.value==='price_on_request';const price=document.getElementById('listingPrice');price.required=!componentsOnly&&!request;price.disabled=componentsOnly||request;if(request&&!componentsOnly)price.value='';
   const group=select.value==='per_group';document.getElementById('listingGroupCapacityField').hidden=!group;document.getElementById('listingGroupCapacity').required=group;
-  updatePricingPreview();
+  updatePricingPreview();updateComponentPricingControls();
 }
 
 function updatePricingPreview(){
@@ -560,15 +843,23 @@ async function openListingEditor(listing = null) {
     }
 
     listingForm.reset();
-    state.listingEditor = { original: editable, originalStatus, existingGallery: [], newGallery: [], coverFile: null, rooms: [], policy: null, route: null };
+    state.listingEditor = { original: editable, originalStatus, existingGallery: [], newGallery: [], coverFile: null, rooms: [], policy: null, route: null,packageDetails:null,packageTransfers:[],servicePickupLocations:[],priceComponents:[] };
     resetListingFilePickerStatus(editable);
     document.getElementById('listingEditor').hidden = false;
     document.getElementById('listingEditorTitle').textContent = editable ? 'Edit service or listing' : 'Add service or listing';
+    document.getElementById('listingBusinessContext').textContent=`Listing for: ${business.business_name}`;
+    renderListingTypeCards(Boolean(editable));
     document.getElementById('listingId').value = editable?.id || '';
     document.getElementById('listingIsland').value = editable?.island || business.island;
     document.getElementById('listingCategory').value = editable?.category
       || OPERATOR_LISTING_DEFAULTS[state.business?.category]?.[0]
       || 'other';
+    updateListingCategoryOptions(editable?.category||'');
+    if(document.getElementById('listingCategory').selectedOptions[0]?.disabled){const first=[...document.getElementById('listingCategory').options].find((option)=>!option.disabled);if(first)document.getElementById('listingCategory').value=first.value;}
+    document.getElementById('listingKind').value=editable?.listing_kind||'standard';
+    document.getElementById('listingPricingMode').value=editable?.pricing_mode||'main_plus_components';
+    document.getElementById('priceIncludesEverything').value='yes';
+    renderListingActivityChoices(editable?.activity_type_slugs||[]);renderPackageLocationChoices();renderServicePickupLocationChoices();
     setMessage(document.getElementById('listingEditorWarning'));
     if (originalStatus === 'published') {
       setMessage(document.getElementById('listingEditorWarning'), 'Saving changes will remove this listing from public view and return it for administrator review.', 'warning');
@@ -582,12 +873,17 @@ async function openListingEditor(listing = null) {
       listingSummary:'summary', listingDescription:'description', meetingPoint:'meeting_point', requirements:'requirements',
       cancellationInformation:'cancellation_information', propertyType:'property_type', roomType:'room_type', maximumGuests:'maximum_guests',
       numberOfRooms:'number_of_rooms', checkInTime:'check_in_time', checkOutTime:'check_out_time', pricePerNight:'price_per_night',listingGroupCapacity:'group_capacity',
-      listingChildPrice:'child_price', listingTaxes:'taxes_amount', listingFees:'fees_amount', listingLatitude:'latitude', listingLongitude:'longitude'
+      listingChildPrice:'child_price', listingTaxes:'taxes_amount', listingFees:'fees_amount', listingLatitude:'latitude', listingLongitude:'longitude',
+      activityDuration:'service_duration_minutes',activityMinimumGuests:'service_minimum_guests',activityPickupMode:'service_pickup_mode',activityPickupNotes:'service_pickup_notes'
     };
     if (editable) Object.entries(map).forEach(([id, key]) => document.getElementById(id).value = editable[key] ?? '');
+    document.querySelectorAll('[name="activityDay"]').forEach((input)=>{input.checked=!editable||editable.service_operating_days?.includes(Number(input.value));});
     document.getElementById('includedItems').value = editable?.included_items?.join(', ') || '';
     document.getElementById('excludedItems').value = editable?.excluded_items?.join(', ') || '';
+    if(editable){await loadPriceComponents(client,editable.id);await loadServicePickupLocations(client,editable.id);}
+    renderPriceComponents();updateComponentPricingControls();
     toggleAccommodationFields();
+    handleListingKindChange();
     updatePricingControls();
     facilitiesSelector.load(value('listingCategory'), editable?.amenities || []);
 
@@ -595,6 +891,7 @@ async function openListingEditor(listing = null) {
     else renderRoomTypes();
     if (editable?.category === 'transfer') await loadTransferRoute(client, editable.id);
     else resetTransferRouteFields();
+    if(editable?.listing_kind==='excursion_package')await loadPackageDetails(client,editable.id);
 
     if (editable) {
       const { data, error } = await client.from('listing_images').select('*').eq('listing_id', editable.id).order('sort_order');
@@ -603,6 +900,7 @@ async function openListingEditor(listing = null) {
       resetListingFilePickerStatus(editable, state.listingEditor.existingGallery.length);
     }
     await renderListingMediaEditor();
+    if(editable)showListingWorkflowStep(0);
     await loadListings();
     renderSummary();
     document.getElementById('listingEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -979,10 +1277,31 @@ async function persistTransferRoute(client, listingId) {
   if (error) throw error;
 }
 
+async function loadPackageDetails(client,listingId){
+  const[detailsResult,transferResult]=await Promise.all([client.from('listing_package_details').select('*').eq('listing_id',listingId).maybeSingle(),client.from('package_transfer_options').select('*').eq('listing_id',listingId)]);
+  if(detailsResult.error)throw detailsResult.error;if(transferResult.error)throw transferResult.error;
+  const details=detailsResult.data||{};state.listingEditor.packageDetails=details;state.listingEditor.packageTransfers=transferResult.data||[];
+  const map={packageDuration:'duration_minutes',packageMinimumGuests:'minimum_guests',packageMaximumGuests:'maximum_guests',packageInfantPolicy:'infant_policy',packageSharedPrice:'shared_trip_price',packagePrivatePrice:'private_trip_price',packagePickupMode:'pickup_mode',packagePickupNotes:'pickup_notes',packageDropoffMode:'dropoff_mode',packageDropoffNotes:'dropoff_notes',packageBookingLeadHours:'booking_lead_hours'};
+  Object.entries(map).forEach(([id,key])=>{document.getElementById(id).value=details[key]??document.getElementById(id).value;});
+  document.getElementById('packageEquipmentIncluded').checked=details.equipment_included===true;document.getElementById('packageMealIncluded').checked=details.meal_included===true;document.getElementById('packageWaterIncluded').checked=details.drinking_water_included===true;document.getElementById('packageAirportPickup').checked=details.airport_pickup===true;
+  const days=new Set((details.operating_days||[0,1,2,3,4,5,6]).map(Number));document.querySelectorAll('[name="packageDay"]').forEach((input)=>{input.checked=days.has(Number(input.value));});renderPackageLocationChoices(state.listingEditor.packageTransfers);
+  document.getElementById('packagePickupFee').value=state.listingEditor.packageTransfers.find((item)=>item.direction==='pickup'&&item.availability==='extra_charge')?.fee??'';document.getElementById('packageDropoffFee').value=state.listingEditor.packageTransfers.find((item)=>item.direction==='dropoff'&&item.availability==='extra_charge')?.fee??'';
+}
+
+async function persistPackageDetails(client,listingId){
+  const activities=[...document.querySelectorAll('[name="listingActivity"]:checked')].map((input)=>input.value);if(activities.length<2)throw new Error('Select at least two included activities for an excursion package.');
+  const operating_days=[...document.querySelectorAll('[name="packageDay"]:checked')].map((input)=>Number(input.value));if(!operating_days.length)throw new Error('Select at least one package operating day.');
+  const payload={listing_id:listingId,duration_minutes:Number(value('packageDuration')),operating_days,minimum_guests:Number(value('packageMinimumGuests')),maximum_guests:Number(value('packageMaximumGuests')),infant_policy:nullable('packageInfantPolicy'),shared_trip_price:numberOrNull('packageSharedPrice'),private_trip_price:numberOrNull('packagePrivatePrice'),equipment_included:document.getElementById('packageEquipmentIncluded').checked,meal_included:document.getElementById('packageMealIncluded').checked,drinking_water_included:document.getElementById('packageWaterIncluded').checked,pickup_mode:value('packagePickupMode'),pickup_notes:nullable('packagePickupNotes'),airport_pickup:document.getElementById('packageAirportPickup').checked,dropoff_mode:value('packageDropoffMode'),dropoff_notes:nullable('packageDropoffNotes'),booking_lead_hours:Number(value('packageBookingLeadHours'))};
+  const saved=await client.from('listing_package_details').upsert(payload,{onConflict:'listing_id'});if(saved.error)throw saved.error;
+  const removed=await client.from('package_transfer_options').delete().eq('listing_id',listingId);if(removed.error)throw removed.error;
+  const options=[];for(const direction of ['pickup','dropoff']){const mode=value(direction==='pickup'?'packagePickupMode':'packageDropoffMode');const availability=mode==='extra_charge'?'extra_charge':'included';const fee=numberOrNull(direction==='pickup'?'packagePickupFee':'packageDropoffFee');if(mode==='extra_charge'&&(fee===null||fee<0))throw new Error(`Enter the ${direction} fee for the selected locations.`);for(const input of document.querySelectorAll(`[name="package${direction}"]:checked`))options.push({listing_id:listingId,direction,location_id:input.value,availability,fee:mode==='extra_charge'?fee:null,currency:value('listingCurrency')});}
+  if(options.length){const inserted=await client.from('package_transfer_options').insert(options);if(inserted.error)throw inserted.error;}
+}
+
 function closeListingEditor() {
   document.getElementById('listingEditor').hidden = true;
   listingForm.reset();
-  state.listingEditor = { original: null, originalStatus: null, existingGallery: [], newGallery: [], coverFile: null, rooms: [], policy: null, route: null };
+  state.listingEditor = { original: null, originalStatus: null, existingGallery: [], newGallery: [], coverFile: null, rooms: [], policy: null, route: null,packageDetails:null,packageTransfers:[],servicePickupLocations:[],priceComponents:[] };
   resetListingFilePickerStatus();
   document.getElementById('listingMediaEditor').replaceChildren();
   document.getElementById('facilitiesSelector').replaceChildren();
@@ -994,8 +1313,9 @@ async function saveListing(event) {
   const button = listingForm.querySelector('button[type="submit"]');
   const capacity = Number(value('listingMaxCapacity'));
   const spaces = Number(value('listingAvailableSpaces'));
+  const componentsOnly=value('listingPricingMode')==='components_only';
   const priceUnit=value('listingPriceUnit');
-  const priceOnRequest=priceUnit==='price_on_request';
+  const priceOnRequest=componentsOnly||priceUnit==='price_on_request';
   const price=priceOnRequest?null:Number(value('listingPrice'));
   try {
     validateListingFields({
@@ -1011,8 +1331,12 @@ async function saveListing(event) {
     setMessage(message, error.message, 'error');
     return;
   }
-  if(!priceUnit){setMessage(message,'Choose an explicit price unit for this listing.','error');return;}
-  if(priceUnit==='per_group'&&!numberOrNull('listingGroupCapacity')){setMessage(message,'Enter the number of people covered by one group price.','error');return;}
+  if(!componentsOnly&&!priceUnit){setMessage(message,'Choose an explicit price unit for this listing.','error');return;}
+  if(!componentsOnly&&priceUnit==='per_group'&&!numberOrNull('listingGroupCapacity')){setMessage(message,'Enter the number of people covered by one group price.','error');return;}
+  syncPackagePricingComponents();try{validatePriceComponents();}catch(error){setMessage(message,error.message,'error');return;}
+  const activityTypeSlugs=[...document.querySelectorAll('[name="listingActivity"]:checked')].map((input)=>input.value);
+  if(!document.querySelector('[name="activityDay"]:checked')){setMessage(message,'Select at least one operating day.','error');return;}
+  if(value('listingKind')==='excursion_package'&&activityTypeSlugs.length<2){setMessage(message,'Select at least two activities included in this package.','error');return;}
   if (value('listingCategory') === 'transfer') {
     try { transferRoutePayload('00000000-0000-0000-0000-000000000000'); }
     catch (error) { setMessage(message, error.message, 'error'); return; }
@@ -1028,12 +1352,13 @@ async function saveListing(event) {
     const { user, business } = await loadAuthenticatedListingBusiness(client);
     const accommodation = value('listingCategory') === 'accommodation';
     const payload = bindListingToBusiness({
-      title: value('listingTitle'), category: value('listingCategory'), island: value('listingIsland'),
-      summary: value('listingSummary'), description: value('listingDescription'), price,
-      currency: value('listingCurrency'), price_unit: priceUnit,price_unit_confirmed:!(state.listingEditor.original?.price_unit_confirmed===false&&state.listingEditor.original?.price_unit===priceUnit),group_capacity:priceUnit==='per_group'?numberOrNull('listingGroupCapacity'):null,start_time: nullable('listingStartTime'), end_time: nullable('listingEndTime'),
+      title: value('listingTitle'), category: value('listingCategory'),listing_kind:value('listingKind'),activity_type_slugs:activityTypeSlugs, island: value('listingIsland'),
+      summary: value('listingSummary'), description: value('listingDescription'), price,pricing_mode:value('listingPricingMode'),
+      currency: value('listingCurrency'), price_unit: componentsOnly?(state.listingEditor.original?.price_unit||'per_person'):priceUnit,price_unit_confirmed:componentsOnly||!(state.listingEditor.original?.price_unit_confirmed===false&&state.listingEditor.original?.price_unit===priceUnit),group_capacity:!componentsOnly&&priceUnit==='per_group'?numberOrNull('listingGroupCapacity'):null,start_time: nullable('listingStartTime'), end_time: nullable('listingEndTime'),
       max_capacity: capacity, available_spaces: spaces, included_items: commaList(value('includedItems')), excluded_items: commaList(value('excludedItems')),
       meeting_point: nullable('meetingPoint'), requirements: nullable('requirements'), cancellation_information: nullable('cancellationInformation'),
       latitude: numberOrNull('listingLatitude'), longitude: numberOrNull('listingLongitude'), child_price: numberOrNull('listingChildPrice'),
+      service_duration_minutes:numberOrNull('activityDuration'),service_operating_days:[...document.querySelectorAll('[name="activityDay"]:checked')].map((input)=>Number(input.value)),service_minimum_guests:Number(value('activityMinimumGuests')||1),service_pickup_mode:value('activityPickupMode')||'not_available',service_pickup_notes:nullable('activityPickupNotes'),
       taxes_amount: numberOrNull('listingTaxes') || 0, fees_amount: numberOrNull('listingFees') || 0,
       property_type: accommodation ? value('propertyType') : null, room_type: accommodation ? value('roomType') : null,
       maximum_guests: accommodation ? numberOrNull('maximumGuests') : null, number_of_rooms: accommodation ? numberOrNull('numberOfRooms') : null,
@@ -1070,6 +1395,11 @@ async function saveListing(event) {
       await persistListingPolicy(client, saved.id);
     }
     if (value('listingCategory') === 'transfer') await persistTransferRoute(client, saved.id);
+    syncPackagePricingComponents();
+    await persistPriceComponents(client,saved.id);
+    await persistServicePickupLocations(client,saved.id);
+    if(value('listingKind')==='excursion_package')await persistPackageDetails(client,saved.id);
+    else if(state.listingEditor.original?.listing_kind==='excursion_package'){const removed=await client.from('listing_package_details').delete().eq('listing_id',saved.id);if(removed.error)throw removed.error;}
     await loadListings();
     await loadAvailability();
     renderSummary();
@@ -1165,6 +1495,27 @@ async function pauseListing(id) {
     await loadListings(); await loadAvailability(); renderSummary(); setMessage(message, 'Listing paused and removed from public view.', 'success');
   }
   catch (error) { setMessage(message, error.message, 'error'); }
+}
+
+async function duplicateListing(listing){
+  if(!confirmAction(`Duplicate “${listing.title}” as a new draft?`))return;
+  const client=requireSupabase();const {business}=await loadAuthenticatedListingBusiness(client);const source=await loadOwnedListing(client,listing.id,business.id);if(!source)throw new Error('The source listing is no longer available.');
+  const {id:ignoredId,created_at:ignoredCreated,updated_at:ignoredUpdated,status:ignoredStatus,review_note:ignoredNote,reviewed_by:ignoredReviewer,reviewed_at:ignoredReviewed,...copy}=source;void ignoredId;void ignoredCreated;void ignoredUpdated;void ignoredStatus;void ignoredNote;void ignoredReviewer;void ignoredReviewed;
+  const newId=createListingId();const inserted=await client.from('listings').insert({...copy,id:newId,title:`${source.title} (Copy)`.slice(0,180),cover_image_path:null,status:'draft',is_active:true});if(inserted.error)throw inserted.error;
+  const [componentResult,packageResult,transferResult,servicePickupResult,policyResult]=await Promise.all([
+    client.from('listing_price_components').select('*,listing_price_tiers(*)').eq('listing_id',source.id),
+    client.from('listing_package_details').select('*').eq('listing_id',source.id).maybeSingle(),
+    client.from('package_transfer_options').select('*').eq('listing_id',source.id),
+    client.from('listing_service_pickup_locations').select('location_id,sort_order').eq('listing_id',source.id),
+    client.from('listing_policies').select('*').eq('listing_id',source.id).maybeSingle()
+  ]);
+  for(const result of [componentResult,packageResult,transferResult,servicePickupResult,policyResult])if(result.error&&!['PGRST116','PGRST204','PGRST205','42P01','42703'].includes(result.error.code))throw result.error;
+  for(const component of componentResult.data||[]){const {id:oldComponentId,listing_id:ignoredListing,listing_price_tiers:tiers=[],created_at:componentCreated,updated_at:componentUpdated,...componentCopy}=component;void ignoredListing;void componentCreated;void componentUpdated;const componentId=crypto.randomUUID();const saved=await client.from('listing_price_components').insert({...componentCopy,id:componentId,listing_id:newId});if(saved.error)throw saved.error;if(tiers.length){const savedTiers=await client.from('listing_price_tiers').insert(tiers.map(({id,component_id,created_at,...tier})=>{void id;void component_id;void created_at;return{...tier,id:crypto.randomUUID(),component_id:componentId};}));if(savedTiers.error)throw savedTiers.error;}void oldComponentId;}
+  if(packageResult.data){const {listing_id,updated_at,...details}=packageResult.data;void listing_id;void updated_at;const saved=await client.from('listing_package_details').insert({...details,listing_id:newId});if(saved.error)throw saved.error;}
+  if(transferResult.data?.length){const saved=await client.from('package_transfer_options').insert(transferResult.data.map(({id,listing_id,created_at,...option})=>{void id;void listing_id;void created_at;return{...option,id:crypto.randomUUID(),listing_id:newId};}));if(saved.error)throw saved.error;}
+  if(servicePickupResult.data?.length){const saved=await client.from('listing_service_pickup_locations').insert(servicePickupResult.data.map((option)=>({...option,listing_id:newId})));if(saved.error)throw saved.error;}
+  if(policyResult.data){const {listing_id,updated_at,...policy}=policyResult.data;void listing_id;void updated_at;const saved=await client.from('listing_policies').insert({...policy,listing_id:newId});if(saved.error)throw saved.error;}
+  await loadListings();renderSummary();setMessage(message,'Listing duplicated as a draft. Availability, bookings, reviews, payments, and approval state were not copied.','success');
 }
 
 async function deleteListing(listing) {
@@ -1293,9 +1644,11 @@ async function saveAvailability(event) {
 async function deleteAvailability(id, kind = 'listing') { if (!confirmAction('Delete this availability entry?')) return; try { const { error } = await requireSupabase().from(kind === 'room' ? 'room_availability' : 'availability').delete().eq('id', id); if (error) throw error; await loadAvailability(); renderSummary(); } catch (error) { setMessage(message, error.message, 'error'); } }
 
 async function loadEnquiries() {
-  const { data, error } = await requireSupabase().from('booking_enquiries').select('*, listings(title)').eq('operator_id', state.user.id).order('created_at', { ascending: false });
+  if(!state.business){state.enquiries=[];state.paymentReferences=[];renderEnquiries();return;}
+  const { data, error } = await requireSupabase().from('booking_enquiries').select('*, listings(title,listing_kind,activity_type_slugs), trip_items(item_kind,pickup_point,dropoff_point,note)').eq('operator_id', state.user.id).eq('business_id',state.business.id).order('created_at', { ascending: false });
   if (error) throw error; state.enquiries = data || [];
-  const payments=await requireSupabase().from('payment_references').select('*').eq('operator_id',state.user.id).order('created_at',{ascending:false});
+  const bookingIds=state.enquiries.map((item)=>item.id);
+  const payments=bookingIds.length?await requireSupabase().from('payment_references').select('*').eq('operator_id',state.user.id).in('booking_id',bookingIds).order('created_at',{ascending:false}):{data:[],error:null};
   state.paymentReferences=payments.error&&['PGRST204','PGRST205','42P01','42703'].includes(payments.error.code)?[]:(payments.data||[]);if(payments.error&&!['PGRST204','PGRST205','42P01','42703'].includes(payments.error.code))throw payments.error;renderEnquiries();
 }
 
@@ -1315,7 +1668,8 @@ function renderEnquiries() {
     const stay = enquiry.check_out_date ? `${formatDate(`${enquiry.requested_date}T00:00:00`)} – ${formatDate(`${enquiry.check_out_date}T00:00:00`)} · ${enquiry.rooms_requested} room(s)` : `${formatDate(`${enquiry.requested_date}T00:00:00`)} · ${enquiry.requested_time || 'Time flexible'} · ${enquiry.guest_count} guest(s)`;
     const refs=state.paymentReferences.filter((item)=>item.booking_id===enquiry.id);refs.forEach((ref)=>{if(ref.proof_path)actions.append(actionButton('View proof',()=>viewPaymentProof(ref)));if(ref.status==='submitted')actions.append(actionButton('Confirm payment',()=>reviewPayment(ref,'confirmed'),'aqua'),actionButton('Reject reference',()=>reviewPayment(ref,'rejected'),'danger'));});
     const payment=quotePending?'Price confirmation required':Number(enquiry.deposit_amount)>0?`${formatMoney(enquiry.deposit_amount,enquiry.quote_currency)} deposit · ${String(enquiry.payment_status||'unpaid').replaceAll('_',' ')}`:'Pay operator / no deposit';
-    body.append(createElement('tr', { children: [createElement('td', { children: [createElement('strong', { text: enquiry.guest_full_name }), createElement('div', { text: enquiry.booking_reference || 'Legacy enquiry' }), createElement('div', { text: enquiry.guest_email }), createElement('div', { text: enquiry.guest_phone })] }), createElement('td', { text: enquiry.listings?.title || 'Listing' }), createElement('td', { children:[createElement('div',{text:`${stay}${enquiry.quoted_total!=null?` · ${formatMoney(enquiry.quoted_total,enquiry.quote_currency)}`:''}`}),createElement('small',{text:payment}),...refs.map((ref)=>createElement('small',{text:`${ref.payment_reference} · ${formatMoney(ref.amount,ref.currency)} · ${ref.status}`}))] }), createElement('td', { children: [statusBadge(enquiry.status)] }), createElement('td', { children: [actions] })] }));
+    const packageSummary=(enquiry.listing_kind_snapshot||enquiry.listings?.listing_kind)==='excursion_package'?`Package · ${(enquiry.activity_type_slugs_snapshot?.length?enquiry.activity_type_slugs_snapshot:enquiry.listings?.activity_type_slugs||[]).map((slug)=>slug.replaceAll('-',' ')).join(', ')}`:null;const pickupPoint=enquiry.pickup_point_snapshot||enquiry.trip_items?.pickup_point;const dropoffPoint=enquiry.dropoff_point_snapshot||enquiry.trip_items?.dropoff_point;const pickup=pickupPoint||dropoffPoint?`Pickup / drop-off: ${pickupPoint||'not selected'} → ${dropoffPoint||'not selected'}`:null;
+    body.append(createElement('tr', { children: [createElement('td', { children: [createElement('strong', { text: enquiry.guest_full_name }), createElement('div', { text: enquiry.booking_reference || 'Legacy enquiry' }), createElement('div', { text: enquiry.guest_email }), createElement('div', { text: enquiry.guest_phone })] }), createElement('td', { children:[createElement('strong',{text:enquiry.listings?.title||'Listing'}),packageSummary?createElement('small',{text:packageSummary}):null] }), createElement('td', { children:[createElement('div',{text:`${stay}${enquiry.quoted_total!=null?` · ${formatMoney(enquiry.quoted_total,enquiry.quote_currency)}`:''}`}),pickup?createElement('small',{text:pickup}):null,createElement('small',{text:payment}),...refs.map((ref)=>createElement('small',{text:`${ref.payment_reference} · ${formatMoney(ref.amount,ref.currency)} · ${ref.status}`}))] }), createElement('td', { children: [statusBadge(enquiry.status)] }), createElement('td', { children: [actions] })] }));
   });
   container.append(createElement('div', { className: 'table-wrap', children: [createElement('table', { children: [createElement('thead', { children: [createElement('tr', { children: ['Guest','Listing','Request','Status','Actions'].map((text) => createElement('th', { text })) })] }), body] })] }));
 }

@@ -4,14 +4,15 @@ import { clear, createElement, emptyState, formatDate, formatMoney, setBusy, set
 import { renderPublicListingMedia } from './public-media.js';
 import { renderFacilitiesView } from './facilities-ui.js';
 import { datesInStay, nightsBetween, nonNegativeInteger, positiveInteger, quoteSummary, validDate } from './marketplace.js';
-import { priceUnitLabel } from './pricing.js';
+import { calculatePriceBreakdown, componentMath, priceUnitLabel, serializePriceSnapshot } from './pricing.js';
+import { listingKindLabel } from './service-catalogs.js';
 
-const state = { listing: null, availability: [], gallery: [], rooms: [], roomInventory: [], rates: [], roomImages: [], policy: null, promotions: [], reviews: [], galleryItems: [], galleryIndex: 0 };
+const state = { listing: null, availability: [], gallery: [], rooms: [], roomInventory: [], rates: [], roomImages: [], policy: null, promotions: [], reviews: [], galleryItems: [], galleryIndex: 0,moreFromProvider:[],activityTypes:[],selectedOptionalIds:[] };
 const container = document.getElementById('listingDetail');
 const message = document.getElementById('detailMessage');
 const dialog = document.getElementById('enquiryDialog');
 const galleryDialog = document.getElementById('galleryDialog');
-const listingPriceLabel=(listing)=>listing.price==null||listing.price_unit==='price_on_request'?'Price on request':`${formatMoney(listing.price,listing.currency)} ${priceUnitLabel(listing.price_unit).toLowerCase()}`;
+const listingPriceLabel=(listing)=>listing.pricing_mode==='components_only'?'Built from separate charges':listing.price==null||listing.price_unit==='price_on_request'?'Price on request':`${formatMoney(listing.price,listing.currency)} ${priceUnitLabel(listing.price_unit).toLowerCase()}`;
 const form = document.getElementById('enquiryForm');
 const control = (id) => document.getElementById(id);
 
@@ -59,6 +60,7 @@ async function init() {
     if (galleryResult.error) throw galleryResult.error;
     if (!listingResult.data) return container.append(emptyState('Listing unavailable', 'This listing may be awaiting approval, paused, or removed.'));
     state.listing = listingResult.data; state.availability = availabilityResult.data || []; state.gallery = galleryResult.data || [];
+    const [moreResult,activityResult]=await Promise.all([client.from('public_listings').select('id,title,category,listing_kind,is_package,summary').eq('business_id',state.listing.business_id).neq('id',id).order('updated_at',{ascending:false}).limit(8),client.from('public_activity_types').select('slug,name')]);state.moreFromProvider=moreResult.error?[]:(moreResult.data||[]);state.activityTypes=activityResult.error?[]:(activityResult.data||[]);
     const [rooms, policy, promotions, reviews] = await Promise.all([
       optional(client.from('public_accommodation_rooms').select('*').eq('listing_id', id).order('sort_order')),
       optional(client.from('public_listing_policies').select('*').eq('listing_id', id).maybeSingle()),
@@ -175,31 +177,50 @@ async function renderGallery(listing) {
   gallery.append(createElement('h2', { text: 'Photo gallery' }), previews); return gallery;
 }
 
+function publicPricingSection(){
+  const result=calculatePriceBreakdown(state.listing,{adults:1,children:0},[]);if(!result.lines.length)return null;
+  const required=createElement('div',{className:'public-price-lines'});[...result.required,...result.included].forEach((line)=>required.append(createElement('div',{className:'price-breakdown-line',children:[createElement('span',{text:`${line.name} — ${line.status==='included'?'Included':'Required'}`}),createElement('strong',{text:line.status==='included'?'Included':line.pending?'Price on request':`${formatMoney(line.rate,line.currency||result.currency)} ${priceUnitLabel(line.unit).toLowerCase()}`})]})));
+  const optional=createElement('div',{className:'public-price-lines'});result.optional.forEach((line)=>optional.append(createElement('div',{className:'price-breakdown-line',children:[createElement('span',{text:`${line.name} — Optional`}),createElement('strong',{text:line.pending?'Price on request':`+ ${formatMoney(line.rate,line.currency||result.currency)} ${priceUnitLabel(line.unit).toLowerCase()}`})]})));
+  return createElement('section',{className:'marketplace-detail-section public-complete-price',children:[createElement('h2',{text:'Included / Required'}),required,optional.childElementCount?createElement('h3',{text:'Optional Extras'}):null,optional,createElement('p',{className:'help',text:'Enter your party size in the booking form to see the complete required total and select optional extras.'})]});
+}
+
 async function render() {
   clear(container); const listing = state.listing;
   const hero = createElement('div', { className: 'detail-hero' }); await renderPublicListingMedia(hero, listing, { loading: 'eager' });
   const enquire = createElement('button', { className: 'button aqua', text: 'Send booking enquiry', attrs: { type: 'button' } }); enquire.addEventListener('click', () => { dialog.showModal(); updateQuote(); });
   const save = createElement('button', { className: 'button secondary', text: '♡ Save', attrs: { type: 'button' } }); save.addEventListener('click', () => saveListing(save));
-  const trip = createElement('button', { className: 'button secondary', text: '+ Add to trip', attrs: { type: 'button' } }); trip.addEventListener('click', () => addToTrip(trip));
+  const trip = createElement('button', { className: 'button secondary', text: '+ Add to My Baa Trip', attrs: { type: 'button' } }); trip.addEventListener('click', () => addToTrip(trip));
   const contact = createElement('div', { className: 'form-actions' });
   if (listing.contact_email) contact.append(createElement('a', { className: 'button secondary', text: 'Email operator', attrs: { href: `mailto:${listing.contact_email}` } }));
   if (listing.contact_phone) contact.append(createElement('a', { className: 'button secondary', text: 'Call operator', attrs: { href: `tel:${listing.contact_phone.replace(/[^+\d]/g, '')}` } }));
   const businessLink = createElement('a', { className: 'business-heading-link', text: listing.business_name, attrs: { href: `business.html?id=${encodeURIComponent(listing.business_id)}` } });
   const definitions = [definition('Island', listing.island), definition('Category', statusLabel(listing.category)), definition('Price', listingPriceLabel(listing)), definition('Capacity', `${listing.available_spaces} of ${listing.max_capacity} spaces`), definition('Schedule', listing.start_time ? `${listing.start_time} – ${listing.end_time || 'Flexible'}` : 'Flexible'), definition('Meeting point', listing.meeting_point), definition('Included', listing.included_items?.join(', ')), definition('Excluded', listing.excluded_items?.join(', ')), definition('Requirements', listing.requirements), definition('Cancellation', listing.cancellation_information)];
+  if(listing.is_package){const dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];const transferOptions=(listing.package_transfer_options||[]).map((option)=>`${option.direction}: ${option.location} — ${statusLabel(option.availability)}${option.fee!=null?` ${formatMoney(option.fee,option.currency)}`:''}`).join('; ');definitions.push(
+    definition('Package activities',(listing.activity_type_slugs||[]).map((slug)=>state.activityTypes.find((item)=>item.slug===slug)?.name||slug.replaceAll('-',' ')).join(', ')),
+    definition('Duration',listing.duration_minutes?`${listing.duration_minutes} minutes`:'Flexible'),definition('Available days',(listing.operating_days||[]).map((day)=>dayNames[Number(day)]).join(', ')),
+    definition('Guest range',`${listing.package_minimum_guests||1}–${listing.package_maximum_guests||'open'} guests`),definition('Infant rules',listing.infant_policy||'Ask the provider'),
+    definition('Shared / private price',[listing.shared_trip_price!=null?`${formatMoney(listing.shared_trip_price,listing.currency)} shared`:null,listing.private_trip_price!=null?`${formatMoney(listing.private_trip_price,listing.currency)} private`:null].filter(Boolean).join(' · ')||'Use the published package price'),
+    definition('Package provisions',[listing.equipment_included?'Equipment':null,listing.meal_included?'Meal':null,listing.drinking_water_included?'Drinking water':null].filter(Boolean).join(', ')||'See inclusions'),
+    definition('Pickup',`${statusLabel(listing.pickup_mode)}${listing.airport_pickup?' · airport pickup available':''}${listing.pickup_notes?` · ${listing.pickup_notes}`:''}`),definition('Drop-off',`${statusLabel(listing.dropoff_mode)}${listing.dropoff_notes?` · ${listing.dropoff_notes}`:''}`),
+    definition('Pickup / drop-off locations',transferOptions||'No additional location options listed'),definition('Booking lead time',`${listing.booking_lead_hours||0} hours`)
+  );}
   if (listing.category === 'accommodation') definitions.push(definition('Property / room', `${listing.property_type} · ${listing.room_type}`), definition('Rooms / guests', `${listing.number_of_rooms} rooms · up to ${listing.maximum_guests} guests`), definition('Check-in / out', `${listing.check_in_time || '—'} / ${listing.check_out_time || '—'}`));
   const facilities = renderFacilitiesView(listing);
   const gallery = await renderGallery(listing);
   const roomOptions = await roomsSection();
   const schedules = createElement('div', { className: 'availability-list' });
   state.availability.forEach((slot) => schedules.append(createElement('div', { className: 'availability-item', children: [createElement('strong', { text: formatDate(`${slot.available_date}T00:00:00`) }), createElement('span', { text: `${slot.start_time || 'All day'}${slot.end_time ? `–${slot.end_time}` : ''} · ${slot.remaining_spaces} spaces` })] })));
-  container.append(createElement('div', { className: 'detail-grid', children: [createElement('section', { children: [hero, createElement('div', { className: 'detail-copy', children: [createElement('span', { className: 'eyebrow', text: `${listing.island} · ${statusLabel(listing.category)}` }), createElement('h1', { text: listing.title }), createElement('p', { className: 'business-byline', children: [createElement('span', { text: 'Offered by ' }), businessLink, listing.is_verified ? createElement('span', { className: 'verified-label', text: ' · ✓ Verified by Visit Baa' }) : null] }), createElement('p', { text: listing.description }), createElement('div', { className: 'definition-grid', children: definitions }), facilities, promotionSection(), roomOptions, policiesSection(), gallery, reviewsSection()] })] }), createElement('aside', { className: 'detail-sidebar panel', children: [createElement('span', { className: 'eyebrow', text: 'Request a place' }), createElement('h2', { text: listingPriceLabel(listing) }), createElement('p', { text: state.availability.length ? `${state.availability.length} upcoming schedule(s) currently listed.` : 'Ask the operator about dates and available spaces.' }), schedules, enquire, createElement('div', { className: 'form-actions', children: [save, trip] }), contact] })] }));
+  const more=state.moreFromProvider.length?createElement('section',{className:'panel more-provider',children:[createElement('h2',{text:'More from this provider'}),createElement('div',{className:'listing-grid',children:state.moreFromProvider.map((item)=>createElement('article',{className:'listing-card compact',children:[createElement('span',{className:'eyebrow',text:listingKindLabel(item)}),createElement('h3',{text:item.title}),createElement('p',{text:item.summary}),createElement('a',{className:'button secondary small',text:'View service',attrs:{href:`listing.html?id=${encodeURIComponent(item.id)}`}})]}))})]}):null;
+  container.append(createElement('div', { className: 'detail-grid', children: [createElement('section', { children: [hero, createElement('div', { className: 'detail-copy', children: [createElement('span', { className: 'eyebrow', text: `${listing.island} · ${listingKindLabel(listing)}` }), createElement('h1', { text: listing.title }), createElement('p', { className: 'business-byline', children: [createElement('span', { text: 'Provided by ' }), businessLink, listing.is_verified ? createElement('span', { className: 'verified-label', text: ' · ✓ Verified by Visit Baa' }) : null] }), createElement('p', { text: listing.description }), createElement('div', { className: 'definition-grid', children: definitions }), facilities, promotionSection(), roomOptions, policiesSection(), gallery, reviewsSection(),more] })] }), createElement('aside', { className: 'detail-sidebar panel', children: [createElement('span', { className: 'eyebrow', text: listing.is_package?'Request this package':'Request a place' }), createElement('h2', { text: listingPriceLabel(listing) }), createElement('p', { text: state.availability.length ? `${state.availability.length} upcoming schedule(s) currently listed.` : 'Ask the operator about dates and available spaces.' }), schedules, publicPricingSection(), enquire, createElement('div', { className: 'form-actions', children: [save, trip] }), contact] })] }));
 }
 
 function populateBookingForm() {
   const params = new URLSearchParams(location.search);
   const accommodation = state.listing.category === 'accommodation';
+  const packageListing=state.listing.is_package===true;
   document.querySelectorAll('.accommodation-booking-field').forEach((field) => { field.hidden = !accommodation; });
   document.querySelectorAll('.experience-booking-field').forEach((field) => { field.hidden = accommodation; });
+  document.querySelectorAll('.package-booking-field').forEach((field)=>{field.hidden=!packageListing;});
   control('checkOutDate').required = accommodation;
   control('requestedDateLabel').textContent = accommodation ? 'Check-in' : (state.listing.category === 'transfer' ? 'Travel date' : 'Activity date');
   control('guestCountLabel').textContent = accommodation ? 'Adults' : (state.listing.category === 'transfer' ? 'Passengers' : 'Guests');
@@ -208,6 +229,8 @@ function populateBookingForm() {
   control('checkOutDate').value = params.get('checkout') || '';
   control('guestCount').value = params.get('adults') || params.get('guests') || '1';
   control('childrenCount').value = params.get('children') || '0'; control('roomsRequested').value = params.get('rooms') || '1';
+  for(const direction of ['pickup','dropoff']){const select=control(direction==='pickup'?'packagePickupSelect':'packageDropoffSelect');clear(select);select.append(createElement('option',{text:`Use the provider's stated ${direction} arrangement`,attrs:{value:''}}));const packageOptions=(state.listing.package_transfer_options||[]).filter((option)=>option.direction===direction&&option.availability!=='not_available');packageOptions.forEach((option)=>select.append(createElement('option',{text:`${option.location} · ${statusLabel(option.availability)}${option.fee!=null?` · ${formatMoney(option.fee,option.currency)}`:''}`,attrs:{value:option.location_id}})));if(direction==='pickup'&&!packageListing)(state.listing.service_pickup_locations||[]).forEach((option)=>select.append(createElement('option',{text:`${option.location} · ${statusLabel(state.listing.pickup_mode)}`,attrs:{value:option.location_id}})));if(direction==='pickup'){select.previousElementSibling.textContent=packageListing?'Package pickup':'Pickup location';select.closest('.field').hidden=accommodation||select.options.length===1;}}
+  renderBookingOptionalExtras();
   const availability = control('availabilitySelect'); clear(availability); availability.append(createElement('option', { text: 'Choose manually', attrs: { value: '' } }));
   state.availability.forEach((slot) => availability.append(createElement('option', { text: `${formatDate(`${slot.available_date}T00:00:00`)} · ${slot.start_time || 'All day'} · ${slot.remaining_spaces} spaces`, attrs: { value: slot.id } })));
   refreshRoomSelect();
@@ -219,6 +242,11 @@ function populateBookingForm() {
   control('roomSelect').addEventListener('change', () => { populateRatePlans(); updateQuote(); });
   ['requestedDate','checkOutDate','guestCount','childrenCount','roomsRequested'].forEach((id) => control(id).addEventListener('change', () => { refreshRoomSelect(); updateQuote(); }));
   control('ratePlanSelect').addEventListener('change', updateQuote);
+}
+
+function renderBookingOptionalExtras(){
+  const host=control('bookingOptionalExtras');clear(host);const optional=state.listing.price_components?.filter((component)=>component.charge_status==='optional')||[];host.hidden=!optional.length;if(!optional.length)return;
+  host.append(createElement('strong',{text:'Optional Extras'}));optional.forEach((component)=>{const input=createElement('input',{attrs:{type:'checkbox',value:component.id}});input.checked=state.selectedOptionalIds.includes(component.id);input.addEventListener('change',()=>{state.selectedOptionalIds=input.checked?[...new Set([...state.selectedOptionalIds,component.id])]:state.selectedOptionalIds.filter((id)=>id!==component.id);updateQuote();});host.append(createElement('label',{className:'checkbox optional-price-choice',children:[input,createElement('span',{text:`${component.name} · ${component.amount==null?'Price on request':`+ ${formatMoney(component.amount,component.currency)} ${priceUnitLabel(component.price_unit).toLowerCase()}`}`})]}));});
 }
 
 function refreshRoomSelect() {
@@ -242,7 +270,8 @@ function updateQuote() {
     const room = state.rooms.find((item) => item.id === control('roomSelect').value); const rate = state.rates.find((item) => item.id === control('ratePlanSelect').value);
     unitPrice = Number(rate?.nightly_price ?? room?.base_price ?? state.listing.price_per_night ?? state.listing.price); currency = room?.currency || currency;
   }
-  const quote = quoteSummary(state.listing, { nights, rooms, guests: adults + children, unitPrice });
+  const quote = quoteSummary(state.listing, { nights, rooms, guests: adults + children, unitPrice });let priceBreakdown=null;
+  if(!accommodation){priceBreakdown=calculatePriceBreakdown(state.listing,{adults,children,rooms:1,nights:1},state.selectedOptionalIds);if(priceBreakdown.requiredTotal==null){control('bookingQuote').replaceChildren(createElement('strong',{text:'Price confirmation required. Missing prices are not treated as free.'}),...priceBreakdown.lines.map((line)=>createElement('small',{text:`${line.name}: ${componentMath(line)}`})));return;}quote.subtotal=priceBreakdown.finalTotal;quote.total=priceBreakdown.finalTotal+quote.taxes+quote.fees;}
   if (accommodation && nights) {
     const roomId = control('roomSelect').value;
     const inventoryByDate = new Map(state.roomInventory.filter((item) => item.room_id === roomId).map((item) => [item.available_date, item]));
@@ -259,7 +288,7 @@ function updateQuote() {
   })[0];
   const discount = promotion ? Math.min(quote.subtotal, promotion.discount_type === 'percent' ? quote.subtotal * Number(promotion.discount_value) / 100 : Number(promotion.discount_value)) : 0;
   const total = Math.max(0, quote.total - discount);
-  control('bookingQuote').replaceChildren(createElement('strong', { text: accommodation && !nights ? 'Choose valid stay dates for a total.' : `Estimated total: ${formatMoney(total, currency)}${nights ? ` for ${nights} night${nights === 1 ? '' : 's'}` : ''}` }), discount ? createElement('small', { text: `${promotion.name}: ${formatMoney(discount, currency)} discount applied.` }) : null, (quote.taxes || quote.fees) ? createElement('small', { text: `Includes configured taxes ${formatMoney(quote.taxes, currency)} and fees ${formatMoney(quote.fees, currency)}.` }) : null);
+  control('bookingQuote').replaceChildren(createElement('strong', { text: accommodation && !nights ? 'Choose valid stay dates for a total.' : `${accommodation?'Estimated total':'TOTAL FOR YOUR GROUP'}: ${formatMoney(total, currency)}${nights ? ` for ${nights} night${nights === 1 ? '' : 's'}` : ''}` }),...(priceBreakdown?.lines||[]).filter((line)=>line.status!=='optional'||line.selected).map((line)=>createElement('small',{text:`${line.name} — ${line.status==='included'?'Included':line.pending?'Price on request':`${componentMath(line)} = ${formatMoney(line.amount,line.currency||currency)}`}`})),discount ? createElement('small', { text: `${promotion.name}: ${formatMoney(discount, currency)} discount applied.` }) : null, (quote.taxes || quote.fees) ? createElement('small', { text: `Includes configured taxes ${formatMoney(quote.taxes, currency)} and fees ${formatMoney(quote.fees, currency)}.` }) : null);
 }
 
 form.addEventListener('submit', async (event) => {
@@ -270,15 +299,16 @@ form.addEventListener('submit', async (event) => {
   if (state.listing.category === 'accommodation' && state.rooms.length && !control('roomSelect').value) return setMessage(enquiryMessage, 'No room type is available for the selected stay and travelers.', 'error');
   try {
     setBusy(button, true, 'Sending…');
-    const { data, error } = await requireSupabase().rpc('create_booking_request', {
+    const standardPayload={
       p_listing_id:state.listing.id,p_availability_id:selected?.id || null,p_room_id:state.listing.category === 'accommodation' ? (control('roomSelect').value || null) : null,
       p_rate_plan_id:control('ratePlanSelect').value || null,p_requested_date:control('requestedDate').value,p_check_out_date:control('checkOutDate').value || null,
       p_requested_time:control('requestedTime').value || null,p_adults:adults,p_children:children,p_rooms:positiveInteger(control('roomsRequested').value),
       p_guest_full_name:control('guestName').value.trim(),p_guest_email:control('guestEmail').value.trim(),p_guest_phone:control('guestPhone').value.trim(),p_guest_message:control('guestMessage').value.trim() || null
-    });
+    };const pricedPayload={...standardPayload,p_optional_component_ids:state.selectedOptionalIds,p_pickup_location_id:control('packagePickupSelect').value||null,p_dropoff_location_id:state.listing.is_package?(control('packageDropoffSelect').value||null):null};
+    const {data,error}=await requireSupabase().rpc('create_priced_booking_request',pricedPayload);
     if (error) throw error;
-    form.reset(); populateBookingForm();
-    setMessage(enquiryMessage, `Enquiry sent. Reference ${data.booking_reference}. Quoted total ${formatMoney(data.quoted_total, data.quote_currency)}. The operator must accept and confirm it.`, 'success');
+    form.reset();state.selectedOptionalIds=[];populateBookingForm();
+    setMessage(enquiryMessage, `Enquiry sent. Reference ${data.booking_reference}. ${data.quoted_total==null?'Price confirmation is required.':`Quoted total ${formatMoney(data.quoted_total,data.quote_currency)}.`} The operator must accept and confirm it.`, 'success');
   } catch (error) { setMessage(enquiryMessage, error.message, 'error'); }
   finally { setBusy(button, false); }
 });
@@ -303,10 +333,12 @@ async function addToTrip(button) {
       let { data: trip, error } = await requireSupabase().from('trips').select('id').eq('user_id', data.user.id).order('updated_at', { ascending: false }).limit(1).maybeSingle();
       if (error) throw error;
       if (!trip) { const id=crypto.randomUUID();const inserted=await requireSupabase().from('trips').insert({id,user_id:data.user.id,name:'My Baa Trip'});if(inserted.error)throw inserted.error;const fetched=await requireSupabase().from('trips').select('id').eq('id',id).eq('user_id',data.user.id).maybeSingle();if(fetched.error||!fetched.data)throw fetched.error||new Error('Draft ownership validation failed');trip=fetched.data; }
-      const result = await requireSupabase().from('trip_items').upsert({ trip_id:trip.id, listing_id:state.listing.id, planned_date:plannedDate }, { onConflict:'trip_id,listing_id,planned_date,planned_time' }); if (result.error) throw result.error;
+      const pickup=control('packagePickupSelect')?.selectedOptions[0]?.value?control('packagePickupSelect').selectedOptions[0].textContent:null;const dropoff=control('packageDropoffSelect')?.selectedOptions[0]?.value?control('packageDropoffSelect').selectedOptions[0].textContent:null;
+      const adults=positiveInteger(control('guestCount').value);const children=nonNegativeInteger(control('childrenCount').value);const rooms=positiveInteger(control('roomsRequested').value);const nights=Math.max(1,nightsBetween(control('requestedDate').value,control('checkOutDate').value)||1);const snapshot=serializePriceSnapshot(state.listing,{adults,children,rooms,nights},state.selectedOptionalIds);
+      const result = await requireSupabase().from('trip_items').upsert({ trip_id:trip.id, listing_id:state.listing.id,item_kind:state.listing.is_package?'package':state.listing.category==='transfer'?'transfer':state.listing.category==='accommodation'?'accommodation':'activity', planned_date:plannedDate,pickup_point:pickup,dropoff_point:dropoff,adult_count:adults,child_count:children,rooms_requested:rooms,selected_price_component_ids:state.selectedOptionalIds,price_snapshot:snapshot,draft_subtotal:snapshot.final_total,quote_currency:snapshot.currency,price_unit:state.listing.price_unit }, { onConflict:'trip_id,listing_id,planned_date,planned_time' }); if (result.error) throw result.error;
     } else {
       const items = JSON.parse(localStorage.getItem('baa_trip_items') || '[]').filter((item) => item.listingId !== state.listing.id || item.plannedDate !== plannedDate);
-      items.push({ listingId:state.listing.id, title:state.listing.title, island:state.listing.island, category:state.listing.category, plannedDate }); localStorage.setItem('baa_trip_items', JSON.stringify(items));
+      items.push({ listingId:state.listing.id, title:state.listing.title, island:state.listing.island, category:state.listing.category,itemKind:state.listing.is_package?'package':state.listing.category, plannedDate,pickupPoint:control('packagePickupSelect')?.selectedOptions[0]?.textContent||null,dropoffPoint:control('packageDropoffSelect')?.selectedOptions[0]?.textContent||null }); localStorage.setItem('baa_trip_items', JSON.stringify(items));
     }
     button.textContent = 'Added to My Baa Trip'; button.disabled = true;
   } catch { setMessage(message, 'Your draft remains saved on this device. Online saving is temporarily unavailable.', 'error'); }

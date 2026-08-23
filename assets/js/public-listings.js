@@ -1,13 +1,14 @@
-import { requirePublicSupabase, showConfigurationNotice } from './supabase-client.js';
+import { requirePublicSupabase, requireSupabase, showConfigurationNotice } from './supabase-client.js';
 import { clear, createElement, emptyState, formatMoney, setMessage, statusLabel } from './ui.js';
 import { renderPublicListingMedia } from './public-media.js';
 import { POPULAR_FACILITIES } from './facilities-config.js';
 import { facilityQueryAliases } from './facilities-ui.js';
 import { availabilityLabel, nightsBetween, nonNegativeInteger, positiveInteger, quoteSummary, validDate } from './marketplace.js';
-import { priceUnitLabel } from './pricing.js';
+import { calculateListingPrice, priceUnitLabel } from './pricing.js';
+import { listingKindLabel } from './service-catalogs.js';
 
 const PAGE_SIZE = 12;
-const state = { listings: [], total: 0, page: 0, map: null, rooms: [], inventory: [], availability: [], eligibility: null, querySequence: 0 };
+const state = { listings: [], total: 0, page: 0, map: null, rooms: [], inventory: [], availability: [], eligibility: null, querySequence: 0,activityTypes:[] };
 const grid = document.getElementById('listingGrid');
 const message = document.getElementById('listingsMessage');
 const summary = document.getElementById('resultsSummary');
@@ -18,15 +19,17 @@ const sortFilter = document.getElementById('sortFilter');
 const advanced = document.getElementById('advancedFilters');
 const mapContainer = document.getElementById('listingMap');
 const today = new Date().toISOString().slice(0, 10);
+const ISLAND_SERVICE_TABS=[['','All'],['accommodation','Stay'],['excursion','Activities'],['packages','Packages'],['diving','Diving'],['fishing','Fishing'],['transfer','Transport'],['watersports','Watersports'],['food_dining','Food'],['community_experience','Experiences']];
 
 function control(id) { return document.getElementById(id); }
+function renderIslandServiceTabs(){const host=control('islandServiceTabs');host.hidden=!islandFilter.value;clear(host);if(host.hidden)return;ISLAND_SERVICE_TABS.forEach(([value,label])=>{const button=createElement('button',{className:`service-tab${categoryFilter.value===value?' active':''}`,text:label,attrs:{type:'button'}});button.addEventListener('click',()=>{categoryFilter.value=value;renderFacilityFilters();toggleCategoryFields();renderIslandServiceTabs();loadResults();});host.append(button);});}
 function selectedFacilities() { return [...document.querySelectorAll('#facilityFilters input:checked')].map((input) => input.value); }
 function optionalModelMissing(error) { return ['42P01','42703','PGRST205'].includes(error?.code); }
 function postgresArrayValue(value) { return `{"${String(value).replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"}`; }
 
 function currentSearch() {
   return {
-    island: islandFilter.value, category: categoryFilter.value, sort: sortFilter.value,
+    query:control('searchFilter').value.trim(),island: islandFilter.value, category: categoryFilter.value,listingType:control('listingTypeFilter').value,activity:control('activityFilter').value, sort: sortFilter.value,
     checkin: control('checkinFilter').value, checkout: control('checkoutFilter').value, date: control('dateFilter').value,
     adults: positiveInteger(control('adultsFilter').value), children: nonNegativeInteger(control('childrenFilter').value),
     rooms: positiveInteger(control('roomsFilter').value), minPrice: control('minPriceFilter').value,
@@ -36,7 +39,7 @@ function currentSearch() {
 
 function updateUrl(search) {
   const params = new URLSearchParams();
-  for (const key of ['island','category','sort','checkin','checkout','date','minPrice','maxPrice']) if (search[key]) params.set(key, search[key]);
+  for (const key of ['query','island','category','listingType','activity','sort','checkin','checkout','date','minPrice','maxPrice']) if (search[key]) params.set(key, search[key]);
   params.set('adults', String(search.adults));
   if (search.children) params.set('children', String(search.children));
   if (search.rooms !== 1) params.set('rooms', String(search.rooms));
@@ -64,12 +67,18 @@ function toggleCategoryFields() {
   document.querySelector('label[for="adultsFilter"]').textContent = accommodation ? 'Adults' : (transfer ? 'Passengers' : 'Guests');
   document.querySelector('label[for="dateFilter"]').textContent = transfer ? 'Travel date' : 'Activity date';
   if (!accommodation) { control('childrenFilter').value = '0'; control('roomsFilter').value = '1'; }
+  control('listingTypeFilter').hidden=!['','excursion','packages'].includes(categoryFilter.value);
+}
+
+async function loadActivityCatalog(){
+  const {data,error}=await requirePublicSupabase().from('public_activity_types').select('slug,name,sort_order').order('sort_order');if(error&&!optionalModelMissing(error))throw error;state.activityTypes=data||[];const select=control('activityFilter');const wanted=new URLSearchParams(location.search).get('activity')||'';select.replaceChildren(new Option('All activities',''),...state.activityTypes.map((item)=>new Option(item.name,item.slug)));select.value=wanted;
 }
 
 function hydrateFromUrl() {
   const params = new URLSearchParams(location.search);
   islandFilter.value = params.get('island') || '';
   categoryFilter.value = params.get('category') || '';
+  control('searchFilter').value=params.get('query')||'';control('listingTypeFilter').value=params.get('listingType')||'';control('activityFilter').value=params.get('activity')||'';
   sortFilter.value = params.get('sort') || 'recommended';
   control('checkinFilter').value = params.get('checkin') || '';
   control('checkoutFilter').value = params.get('checkout') || '';
@@ -146,10 +155,15 @@ async function eligibleListingIds(search) {
   return null;
 }
 
-function buildListingQuery(search, eligibleIds) {
+function buildListingQuery(search, eligibleIds, { includePickup = true } = {}) {
   let query = requirePublicSupabase().from('public_listings').select('*', { count: 'exact' });
-  if (search.island) query = query.eq('island', search.island);
-  if (search.category) query = query.eq('category', search.category);
+  if (search.island) query = includePickup ? query.or(`island.eq.${search.island},pickup_location_names.cs.{"${search.island}"}`) : query.eq('island',search.island);
+  if(search.category==='packages')query=query.eq('listing_kind','excursion_package');
+  else if (search.category) query = query.eq('category', search.category);
+  if(search.listingType==='packages')query=query.eq('listing_kind','excursion_package');
+  else if(search.listingType==='individual')query=query.neq('listing_kind','excursion_package');
+  if(search.activity)query=query.contains('activity_type_slugs',[search.activity]);
+  if(search.query){const term=search.query.replaceAll(/[,%()]/g,' ').trim();term.split(/\s+/).filter(Boolean).forEach((part)=>{query=query.ilike('search_text',`%${part}%`);});}
   if (search.category === 'accommodation' && (validDate(search.checkin) || validDate(search.date))) query = query.gte('maximum_guests', Math.ceil((search.adults + search.children) / search.rooms));
   if (search.minPrice !== '') query = query.gte('price', Number(search.minPrice));
   if (search.maxPrice !== '') query = query.lte('price', Number(search.maxPrice));
@@ -176,11 +190,14 @@ async function loadResults({ append = false } = {}) {
     const eligibleIds = await eligibleListingIds(search);
     if (sequence !== state.querySequence) return;
     if (Array.isArray(eligibleIds) && !eligibleIds.length) { state.total = 0; state.listings = []; await render(); setMessage(message); return; }
-    const { data, error, count } = await buildListingQuery(search, eligibleIds);
+    let result = await buildListingQuery(search, eligibleIds);
+    if (result.error?.code === '42703' && search.island) result = await buildListingQuery(search, eligibleIds, { includePickup:false });
+    const { data, error, count } = result;
     if (error) throw error;
     if (sequence !== state.querySequence) return;
     state.total = count || 0;
     state.listings = append ? [...state.listings, ...(data || [])] : (data || []);
+    if(search.island&&search.sort==='recommended')state.listings.sort((a,b)=>Number(a.island!==search.island)-Number(b.island!==search.island));
     await loadAvailabilityMeta(search); if (sequence !== state.querySequence) return; await render(); setMessage(message);
   } catch (error) { setMessage(message, error.message, 'error'); }
 }
@@ -231,19 +248,30 @@ async function render() {
   }
   for (const listing of state.listings) {
     const media = createElement('div', { className: 'listing-card-media' }); await renderPublicListingMedia(media, listing);
-    const link = createElement('a', { className: 'button secondary', text: 'View details →', attrs: { href: listingSearchLink(listing) } });
+    const link = createElement('a', { className: 'button secondary', text: listing.is_package?'View Package →':'View details →', attrs: { href: listingSearchLink(listing) } });
+    const add=createElement('button',{className:'button aqua',text:'Add to My Baa Trip',attrs:{type:'button'}});add.addEventListener('click',()=>addToTrip(listing,add));
     const businessLink = createElement('a', { className: 'business-link', text: listing.business_name, attrs: { href: `business.html?id=${encodeURIComponent(listing.business_id)}` } });
-    const total = totalText(listing, search);
+    const total = totalText(listing, search);const calculated=calculateListingPrice(listing,{adults:search.adults,children:search.children,rooms:search.rooms,nights:validDate(search.checkin)&&validDate(search.checkout)?nightsBetween(search.checkin,search.checkout):1});const publicPrice=calculated.total==null?listingPriceLabel(listing):`${formatMoney(calculated.total,listing.currency)} total for your group`;
     grid.append(createElement('article', { className: 'listing-card', children: [media, createElement('div', { className: 'listing-card-body', children: [
-      createElement('span', { className: 'eyebrow', text: statusLabel(listing.category) }), createElement('h3', { text: listing.title }),
-      createElement('div', { className: 'listing-meta', children: [createElement('span', { text: listing.island }), businessLink, listing.is_verified ? createElement('span', { className: 'verified-label', text: '✓ Verified by Visit Baa' }) : null] }),
+      createElement('span', { className: 'eyebrow', text: listingKindLabel(listing).toUpperCase() }), createElement('h3', { text: listing.title }),
+      createElement('div', { className: 'listing-meta', children: [createElement('span', { text: listing.island }),createElement('span',{text:'Provided by'}), businessLink, listing.is_verified ? createElement('span', { className: 'verified-label', text: '✓ Verified by Visit Baa' }) : null] }),
+      listing.activity_type_slugs?.length?createElement('p',{className:'package-activity-list',text:listing.activity_type_slugs.map((slug)=>state.activityTypes.find((item)=>item.slug===slug)?.name||slug.replaceAll('-',' ')).join(' · ')}):null,
+      listing.is_package?createElement('strong',{className:'package-count',text:`${listing.activity_type_slugs.length} experiences included${listing.duration_minutes?` · ${listing.duration_minutes>=360?'Full day':`${listing.duration_minutes} minutes`}`:''}`}):null,
       createElement('p', { text: listing.summary }), createElement('div', { className: 'availability-status', text: availabilityText(listing, search) }),
-      createElement('div', { className: 'price', text: listingPriceLabel(listing) }),
+      listing.island===search.island?createElement('small',{className:'location-priority local',text:`Operates from ${search.island}`}):search.island?createElement('small',{className:'location-priority pickup',text:`Pickup available from ${search.island} · operates from ${listing.island}`}):null,
+      createElement('div', { className: 'price', text: publicPrice }),
       total ? createElement('small', { className: 'calculated-total', text: total }) : null,
-      createElement('div', { className: 'form-actions', children: [link] })
+      createElement('div', { className: 'form-actions', children: [link,add] })
     ] })] }));
   }
   renderMap();
+}
+
+async function addToTrip(listing,button){
+  const plannedDate=control('dateFilter').value||null;
+  try{const auth=await requireSupabase().auth.getUser();if(auth.data?.user){let result=await requireSupabase().from('trips').select('id').eq('user_id',auth.data.user.id).eq('status','draft').order('updated_at',{ascending:false}).limit(1).maybeSingle();if(result.error)throw result.error;let trip=result.data;if(!trip){const id=crypto.randomUUID();const inserted=await requireSupabase().from('trips').insert({id,user_id:auth.data.user.id,name:'My Baa Trip'});if(inserted.error)throw inserted.error;trip={id};}const saved=await requireSupabase().from('trip_items').upsert({trip_id:trip.id,listing_id:listing.id,item_kind:listing.is_package?'package':listing.category==='transfer'?'transfer':listing.category==='accommodation'?'accommodation':'activity',planned_date:plannedDate},{onConflict:'trip_id,listing_id,planned_date,planned_time'});if(saved.error)throw saved.error;}else throw new Error('LOCAL_DRAFT');}
+  catch{const items=JSON.parse(localStorage.getItem('baa_trip_items')||'[]').filter((item)=>item.listingId!==listing.id||item.plannedDate!==plannedDate);items.push({listingId:listing.id,title:listing.title,businessName:listing.business_name,island:listing.island,category:listing.category,listingKind:listing.listing_kind,plannedDate});localStorage.setItem('baa_trip_items',JSON.stringify(items));}
+  button.textContent='Added to My Baa Trip';button.disabled=true;
 }
 
 function renderMap() {
@@ -272,7 +300,8 @@ function renderMap() {
 }
 
 function bindEvents() {
-  categoryFilter.addEventListener('change', () => { renderFacilityFilters(); toggleCategoryFields(); loadResults(); });
+  categoryFilter.addEventListener('change', () => { renderFacilityFilters(); toggleCategoryFields();renderIslandServiceTabs(); loadResults(); });
+  control('listingTypeFilter').addEventListener('change',()=>loadResults());control('activityFilter').addEventListener('change',()=>loadResults());control('searchFilter').addEventListener('search',()=>loadResults());control('searchFilter').addEventListener('keydown',(event)=>{if(event.key==='Enter'){event.preventDefault();loadResults();}});
   control('toggleFilters').addEventListener('click', () => { advanced.hidden = !advanced.hidden; control('toggleFilters').setAttribute('aria-expanded', String(!advanced.hidden)); });
   control('toggleMap').addEventListener('click', () => {
     mapContainer.hidden = !mapContainer.hidden; control('toggleMap').setAttribute('aria-expanded', String(!mapContainer.hidden));
@@ -280,22 +309,22 @@ function bindEvents() {
   });
   control('applyFilters').addEventListener('click', () => loadResults());
   advanced.addEventListener('keydown', (event) => { if (event.key === 'Enter' && event.target.matches('input,select')) { event.preventDefault(); loadResults(); } });
-  islandFilter.addEventListener('change', () => loadResults());
+  islandFilter.addEventListener('change', () => {renderIslandServiceTabs();loadResults();});
   sortFilter.addEventListener('change', () => loadResults());
   control('clearFilters').addEventListener('click', () => {
-    [islandFilter, categoryFilter].forEach((input) => { input.value = ''; }); sortFilter.value = 'recommended';
+    [islandFilter, categoryFilter,control('listingTypeFilter'),control('activityFilter'),control('searchFilter')].forEach((input) => { input.value = ''; }); sortFilter.value = 'recommended';
     advanced.querySelectorAll('input').forEach((input) => {
       if (['minPriceFilter','maxPriceFilter'].includes(input.id)) input.value = '';
       else input.value = input.type === 'number' ? (input.id === 'childrenFilter' ? '0' : '1') : '';
     });
-    renderFacilityFilters(); toggleCategoryFields(); loadResults();
+    renderFacilityFilters(); toggleCategoryFields();renderIslandServiceTabs(); loadResults();
   });
   control('loadMoreListings').addEventListener('click', () => { state.page += 1; loadResults({ append: true }); });
 }
 
 async function init() {
-  hydrateFromUrl(); bindEvents();
   if (showConfigurationNotice(control('configMessage'))) return grid.append(emptyState('Listings will appear after setup', 'Connect Supabase and approve the first operator listing.'));
+  await loadActivityCatalog();hydrateFromUrl();renderIslandServiceTabs(); bindEvents();
   await loadResults();
 }
 
