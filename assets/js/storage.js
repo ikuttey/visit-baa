@@ -50,9 +50,29 @@ export function signedPublicImageUrl(bucket, path, expiresIn = 3600) {
   return createSignedImageUrl(requirePublicSupabase(), bucket, path, expiresIn);
 }
 
+async function assetIsStillReferenced(client, bucket, path) {
+  if (!path) return false;
+  const checks = {
+    'listing-covers': () => client.from('listings').select('id', { count: 'exact', head: true }).eq('cover_image_path', path),
+    'listing-gallery': () => client.from('listing_images').select('id', { count: 'exact', head: true }).eq('storage_path', path),
+    'room-gallery': () => client.from('room_images').select('id', { count: 'exact', head: true }).eq('storage_path', path),
+    'business-logos': () => client.from('businesses').select('id', { count: 'exact', head: true }).eq('logo_path', path),
+    'business-gallery': () => client.from('business_images').select('id', { count: 'exact', head: true }).eq('storage_path', path)
+  };
+  const check = checks[bucket];
+  if (!check) return false;
+  const result = await check();
+  // If a reference check itself fails, prefer leaving an orphaned object over
+  // accidentally deleting media that another live listing/revision still uses.
+  if (result.error) return true;
+  return Number(result.count || 0) > 0;
+}
+
 export async function removeImage(bucket, path) {
-  if (!path) return;
+  if (!path) return false;
   const client = requireSupabase();
+  if (await assetIsStillReferenced(client, bucket, path)) return false;
   const { error } = await client.storage.from(bucket).remove([path]);
   if (error) throw error;
+  return true;
 }
