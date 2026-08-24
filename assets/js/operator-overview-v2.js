@@ -1,0 +1,42 @@
+import { requireSupabase } from './supabase-client.js';
+import { installOperatorNavigation,formatMoney,localDateString,addDays } from './operator-shell.js';
+
+const client=requireSupabase();
+let currentBusinessId='';
+let timer;
+
+function el(tag,options={}){const node=document.createElement(tag);if(options.className)node.className=options.className;if(options.text!=null)node.textContent=String(options.text);if(options.attrs)Object.entries(options.attrs).forEach(([k,v])=>node.setAttribute(k,String(v)));(options.children||[]).filter(Boolean).forEach((child)=>node.append(child));return node;}
+
+function installV2Overview(){
+  installOperatorNavigation('overview');
+  const oldAvailable=document.getElementById('availableSpacesCount');
+  if(oldAvailable){const label=oldAvailable.parentElement?.querySelector('span');if(label)label.textContent='Arrivals today';}
+  if(document.getElementById('operatorV2Overview'))return;
+  const summary=document.querySelector('.summary-grid');if(!summary)return;
+  const section=el('section',{className:'panel',attrs:{id:'operatorV2Overview'}});
+  section.innerHTML=`<div class="panel-head"><div><span class="eyebrow">Last 30 days</span><h2>Business performance</h2><p>Operational values from confirmed Visit Baa reservations. Visit Baa does not process the operator's money.</p></div><div class="table-actions"><a class="button small secondary" href="operator-reservations.html">Reservations</a><a class="button small secondary" href="operator-calendar.html">Calendar</a><a class="button small aqua" href="operator-analytics.html">Full analytics</a></div></div><div class="operator-metric-grid"><article class="operator-metric"><strong id="ovConfirmed">—</strong><span>Confirmed bookings</span><small>Confirmed / completed / no-show</small></article><article class="operator-metric"><strong id="ovRevenue">—</strong><span>Confirmed value</span><small>Recorded booking value</small></article><article class="operator-metric"><strong id="ovOccupancy">—</strong><span>Occupancy</span><small>Accommodation only</small></article><article class="operator-metric"><strong id="ovADR">—</strong><span>ADR</span><small>Room-night value</small></article><article class="operator-metric"><strong id="ovCancel">—</strong><span>Cancellation rate</span><small>Selected period</small></article><article class="operator-metric"><strong id="ovViews">—</strong><span>Listing views</span><small>Unique daily visitor views</small></article></div><div class="form-actions"><a class="button aqua" href="operator-reservations.html">Open reservations</a><a class="button secondary" href="operator-calendar.html">Manage calendar</a><a class="button secondary" href="operator-rates.html">Rates & promotions</a><a class="button secondary" href="operator-settings.html">Arrival & settings</a></div>`;
+  summary.insertAdjacentElement('afterend',section);
+}
+
+function text(id,value){const node=document.getElementById(id);if(node)node.textContent=value;}
+
+async function loadMetrics(businessId){
+  if(!businessId)return;
+  const to=localDateString(),from=addDays(to,-29);
+  const {data,error}=await client.rpc('operator_business_analytics',{p_business_id:businessId,p_from:from,p_to:to});
+  if(error){console.error('Overview metrics failed:',error);return;}
+  text('ovConfirmed',data?.confirmed_bookings??0);text('ovRevenue',formatMoney(data?.confirmed_revenue||0,'USD'));text('ovOccupancy',data?.occupancy_percent==null?'—':`${data.occupancy_percent}%`);text('ovADR',data?.adr==null?'—':formatMoney(data.adr,'USD'));text('ovCancel',`${data?.cancellation_rate??0}%`);text('ovViews',data?.listing_views??0);
+  const arrivals=document.getElementById('availableSpacesCount');if(arrivals)arrivals.textContent=data?.arrivals_today??0;
+}
+
+function selectedBusiness(){const select=document.getElementById('businessSwitcher');return select?.value||localStorage.getItem('baa_operator_business_id')||'';}
+function refresh(){clearTimeout(timer);timer=setTimeout(()=>{const id=selectedBusiness();if(!id)return;if(id!==currentBusinessId)currentBusinessId=id;loadMetrics(id);},120);}
+
+function init(){
+  installV2Overview();refresh();
+  const select=document.getElementById('businessSwitcher');if(select)select.addEventListener('change',()=>{currentBusinessId='';refresh();});
+  const observer=new MutationObserver(refresh);const summary=document.querySelector('.summary-grid');if(summary)observer.observe(summary,{subtree:true,childList:true,characterData:true});
+  window.addEventListener('focus',refresh);
+}
+
+init();
