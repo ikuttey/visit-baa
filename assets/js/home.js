@@ -15,7 +15,8 @@ function normalizeHomepageNavigation() {
   const brand = header.querySelector('.brand');
   if (brand) {
     brand.href = 'index.html';
-    brand.innerHTML = '<span class="brand-mark"></span> Visit Baa';
+    brand.setAttribute('aria-label', 'Visit Baa home');
+    brand.innerHTML = '<img class="visit-baa-brand-logo" src="assets/images/visit-baa-logo.png" alt="Visit Baa">';
   }
 
   const nav = header.querySelector('.navlinks');
