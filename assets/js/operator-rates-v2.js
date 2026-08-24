@@ -1,5 +1,5 @@
 import {
-  initializeOperatorPage,bindBusinessSwitcher,setPageMessage,formatMoney,localDateString,addDays
+  initializeOperatorPage,bindBusinessSwitcher,businessCan,setPageMessage,formatMoney,localDateString,addDays
 } from './operator-shell.js';
 
 const state={client:null,user:null,businesses:[],business:null,listings:[],listing:null,rooms:[],ratePlans:[],promotions:[]};
@@ -18,6 +18,8 @@ function statusText(value){return String(value||'').replaceAll('_',' ');}
 function selectedListing(){return state.listings.find((item)=>item.id===listingSelect.value)||null;}
 function listingEditable(){return state.listing&&editableStatuses.has(state.listing.status);}
 function roomById(id){return state.rooms.find((r)=>r.id===id)||null;}
+function canonicalListingId(){return state.listing?.revision_of_listing_id||state.listing?.id||null;}
+function sourceRatePlanId(plan){return plan?.revision_source_rate_plan_id||plan?.id||null;}
 
 function renderDayChoices(){
   const box=document.getElementById('promotionDays');box.replaceChildren();
@@ -27,7 +29,10 @@ function renderDayChoices(){
 function fillListingSelect(){
   listingSelect.replaceChildren();
   if(!state.listings.length){listingSelect.append(new Option('No listings',''));listingSelect.disabled=true;return;}
-  state.listings.forEach((item)=>listingSelect.append(new Option(`${item.title} — ${statusText(item.status)}`,item.id)));
+  state.listings.forEach((item)=>{
+    const revision=item.revision_of_listing_id?` · revision ${item.revision_number||''}`:'';
+    listingSelect.append(new Option(`${item.title} — ${statusText(item.status)}${revision}`,item.id));
+  });
   listingSelect.disabled=false;
   const remembered=sessionStorage.getItem('baa_rates_listing_id');
   listingSelect.value=state.listings.some((x)=>x.id===remembered)?remembered:state.listings[0].id;
@@ -69,8 +74,9 @@ function renderRatePlans(){
     lock.hidden=true;newButton.disabled=true;container.innerHTML='<div class="empty-state"><strong>Accommodation rate plans only</strong><span>Select an accommodation listing. Other service prices remain operator-controlled in the listing, with promotions available below.</span></div>';return;
   }
   const editable=listingEditable();newButton.disabled=!editable||!state.rooms.length;
-  lock.hidden=editable;lock.textContent=editable?'':'Rate-plan structure is locked while this listing is published or pending review. Calendar prices and promotions can still be managed without changing the approved listing structure.';
-  if(!state.ratePlans.length){container.innerHTML='<div class="empty-state"><strong>No rate plans yet</strong><span>Create a flexible, non-refundable, meal-plan or derived rate while the listing is editable.</span></div>';return;}
+  lock.hidden=editable;
+  if(!editable){lock.textContent=state.listing.revision_of_listing_id?'This revision is locked while it is under administrator review. Withdraw it from review before changing rate-plan structure.':'Rate-plan structure is locked on the live published listing. Use Listings → Edit safely to create a revision; the live rate remains available until the revision is approved.';}
+  if(!state.ratePlans.length){container.innerHTML='<div class="empty-state"><strong>No rate plans yet</strong><span>Create a flexible, non-refundable, meal-plan or derived rate while the listing or revision is editable.</span></div>';return;}
   container.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Room</th><th>Rate plan</th><th>Price</th><th>Meal</th><th>Stay rules</th><th>Status</th><th>Action</th></tr></thead><tbody>${state.ratePlans.map((plan)=>`<tr><td>${esc(roomById(plan.room_id)?.name||'Room')}</td><td><strong>${esc(plan.name)}</strong><small class="table-subline">${esc(statusText(plan.cancellation_type||'flexible'))}</small></td><td>${esc(ratePriceLabel(plan))}</td><td>${esc(statusText(plan.meal_plan_code||plan.meal_plan||'room_only'))}</td><td>${plan.minimum_stay?`Min ${plan.minimum_stay} night${plan.minimum_stay===1?'':'s'}`:'No minimum'}${plan.maximum_stay?` · Max ${plan.maximum_stay}`:''}</td><td>${plan.is_active?'Active':'Inactive'}</td><td>${editable?`<button class="button small secondary" data-edit-rate="${plan.id}" type="button">Edit</button>`:'Locked'}</td></tr>`).join('')}</tbody></table></div>`;
   container.querySelectorAll('[data-edit-rate]').forEach((button)=>button.addEventListener('click',()=>openRateEditor(state.ratePlans.find((p)=>p.id===button.dataset.editRate))));
 }
@@ -78,8 +84,9 @@ function renderRatePlans(){
 function renderPromotions(){
   const container=document.getElementById('promotionsTable');
   if(!state.listing){container.innerHTML='';return;}
-  if(!state.promotions.length){container.innerHTML='<div class="empty-state"><strong>No promotions yet</strong><span>Create a time-limited offer when you want to stimulate demand.</span></div>';return;}
-  container.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Promotion</th><th>Discount</th><th>Stay dates</th><th>Booking window</th><th>Rules</th><th>Status</th><th>Action</th></tr></thead><tbody>${state.promotions.map((p)=>`<tr><td><strong>${esc(p.name)}</strong><small class="table-subline">${esc(statusText(p.promotion_kind))}</small></td><td>${p.discount_type==='percent'?`${p.discount_value}%`:formatMoney(p.discount_value,state.listing.currency)}</td><td>${esc(p.valid_from)} → ${esc(p.valid_until)}</td><td>${p.booking_from||p.booking_until?`${esc(p.booking_from||'Any')} → ${esc(p.booking_until||'Any')}`:'Any booking date'}</td><td>${p.minimum_nights?`Min ${p.minimum_nights} nights`:''}${p.minimum_lead_days!=null?` · ${p.minimum_lead_days}+ days ahead`:''}${p.maximum_lead_days!=null?` · ≤${p.maximum_lead_days} days ahead`:''}</td><td>${p.is_active?'Active':'Inactive'}</td><td><button class="button small secondary" data-edit-promo="${p.id}" type="button">Edit</button></td></tr>`).join('')}</tbody></table></div>`;
+  const liveNote=state.listing.revision_of_listing_id?'<div class="attention-strip"><span>Promotions below apply to the live listing while this revision is being edited.</span></div>':'';
+  if(!state.promotions.length){container.innerHTML=`${liveNote}<div class="empty-state"><strong>No promotions yet</strong><span>Create a time-limited offer when you want to stimulate demand.</span></div>`;return;}
+  container.innerHTML=`${liveNote}<div class="table-wrap"><table><thead><tr><th>Promotion</th><th>Discount</th><th>Stay dates</th><th>Booking window</th><th>Rules</th><th>Status</th><th>Action</th></tr></thead><tbody>${state.promotions.map((p)=>`<tr><td><strong>${esc(p.name)}</strong><small class="table-subline">${esc(statusText(p.promotion_kind))}</small></td><td>${p.discount_type==='percent'?`${p.discount_value}%`:formatMoney(p.discount_value,state.listing.currency)}</td><td>${esc(p.valid_from)} → ${esc(p.valid_until)}</td><td>${p.booking_from||p.booking_until?`${esc(p.booking_from||'Any')} → ${esc(p.booking_until||'Any')}`:'Any booking date'}</td><td>${p.minimum_nights?`Min ${p.minimum_nights} nights`:''}${p.minimum_lead_days!=null?` · ${p.minimum_lead_days}+ days ahead`:''}${p.maximum_lead_days!=null?` · ≤${p.maximum_lead_days} days ahead`:''}</td><td>${p.is_active?'Active':'Inactive'}</td><td><button class="button small secondary" data-edit-promo="${p.id}" type="button">Edit</button></td></tr>`).join('')}</tbody></table></div>`;
   container.querySelectorAll('[data-edit-promo]').forEach((button)=>button.addEventListener('click',()=>openPromotionEditor(state.promotions.find((p)=>p.id===button.dataset.editPromo))));
 }
 
@@ -107,11 +114,23 @@ function openRateEditor(plan=null){
   togglePricingFields();rateEditor.hidden=false;rateEditor.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
+function promotionRateOptions(){
+  const options=[];
+  for(const plan of state.ratePlans){
+    const targetId=sourceRatePlanId(plan);
+    // A brand-new rate plan in a revision has no live counterpart yet; it can be
+    // targeted after the revision is approved and becomes the live rate plan.
+    if(state.listing?.revision_of_listing_id&&!plan.revision_source_rate_plan_id)continue;
+    options.push({id:targetId,label:`${roomById(plan.room_id)?.name||'Room'} · ${plan.name}`});
+  }
+  return options;
+}
+
 function openPromotionEditor(p=null){
   document.getElementById('promotionForm').reset();document.getElementById('promotionActive').checked=true;document.getElementById('promotionPriority').value='100';
   document.getElementById('promotionId').value=p?.id||'';document.getElementById('promotionEditorTitle').textContent=p?'Edit promotion':'New promotion';
   const rateSelect=document.getElementById('promotionRatePlan');rateSelect.replaceChildren(new Option('All rate plans / listing price',''));
-  state.ratePlans.forEach((plan)=>rateSelect.append(new Option(`${roomById(plan.room_id)?.name||'Room'} · ${plan.name}`,plan.id)));
+  promotionRateOptions().forEach((plan)=>rateSelect.append(new Option(plan.label,plan.id)));
   document.querySelectorAll('#promotionDays input').forEach((i)=>{i.checked=false;});
   if(p){
     document.getElementById('promotionKind').value=p.promotion_kind||'custom';document.getElementById('promotionName').value=p.name||'';rateSelect.value=p.applies_to_rate_plan_id||'';
@@ -153,9 +172,9 @@ async function saveRate(event){
 async function savePromotion(event){
   event.preventDefault();if(!state.listing)return;
   const days=[...document.querySelectorAll('#promotionDays input:checked')].map((i)=>Number(i.value));
-  const payload={listing_id:state.listing.id,promotion_kind:document.getElementById('promotionKind').value,name:document.getElementById('promotionName').value.trim(),description:document.getElementById('promotionDescription').value.trim()||null,discount_type:document.getElementById('promotionDiscountType').value,discount_value:Number(document.getElementById('promotionDiscountValue').value),valid_from:document.getElementById('promotionStayFrom').value,valid_until:document.getElementById('promotionStayUntil').value,minimum_nights:nullableNumber('promotionMinNights'),booking_from:document.getElementById('promotionBookingFrom').value||null,booking_until:document.getElementById('promotionBookingUntil').value||null,applies_to_rate_plan_id:document.getElementById('promotionRatePlan').value||null,minimum_lead_days:nullableNumber('promotionMinLead'),maximum_lead_days:nullableNumber('promotionMaxLead'),days_of_week:days.length?days:null,stacking_mode:document.getElementById('promotionStacking').value,priority:Number(document.getElementById('promotionPriority').value||100),is_active:document.getElementById('promotionActive').checked};
+  const payload={listing_id:canonicalListingId(),promotion_kind:document.getElementById('promotionKind').value,name:document.getElementById('promotionName').value.trim(),description:document.getElementById('promotionDescription').value.trim()||null,discount_type:document.getElementById('promotionDiscountType').value,discount_value:Number(document.getElementById('promotionDiscountValue').value),valid_from:document.getElementById('promotionStayFrom').value,valid_until:document.getElementById('promotionStayUntil').value,minimum_nights:nullableNumber('promotionMinNights'),booking_from:document.getElementById('promotionBookingFrom').value||null,booking_until:document.getElementById('promotionBookingUntil').value||null,applies_to_rate_plan_id:document.getElementById('promotionRatePlan').value||null,minimum_lead_days:nullableNumber('promotionMinLead'),maximum_lead_days:nullableNumber('promotionMaxLead'),days_of_week:days.length?days:null,stacking_mode:document.getElementById('promotionStacking').value,priority:Number(document.getElementById('promotionPriority').value||100),is_active:document.getElementById('promotionActive').checked};
   const id=document.getElementById('promotionId').value;const result=id?await state.client.from('promotions').update(payload).eq('id',id):await state.client.from('promotions').insert(payload);
-  if(result.error)throw result.error;promotionEditor.hidden=true;await loadListingData();setPageMessage(message,'Promotion saved.','success');
+  if(result.error)throw result.error;promotionEditor.hidden=true;await loadListingData();setPageMessage(message,'Promotion saved on the live listing.','success');
 }
 
 async function loadListingData(){
@@ -165,13 +184,14 @@ async function loadListingData(){
   if(roomsResult.error)throw roomsResult.error;state.rooms=roomsResult.data||[];
   const rateResult=state.rooms.length?await state.client.from('room_rate_plans').select('*').in('room_id',state.rooms.map((r)=>r.id)).order('sort_order').order('name'):{data:[],error:null};
   if(rateResult.error)throw rateResult.error;state.ratePlans=rateResult.data||[];
-  const promoResult=await state.client.from('promotions').select('*').eq('listing_id',state.listing.id).order('created_at',{ascending:false});if(promoResult.error)throw promoResult.error;state.promotions=promoResult.data||[];
+  const promoResult=await state.client.from('promotions').select('*').eq('listing_id',canonicalListingId()).order('created_at',{ascending:false});if(promoResult.error)throw promoResult.error;state.promotions=promoResult.data||[];
   renderRatePlans();renderPromotions();setPageMessage(message,'');
 }
 
 async function loadBusiness(){
   if(!state.business){state.listings=[];fillListingSelect();return;}
-  const {data,error}=await state.client.from('listings').select('id,title,category,status,currency,is_active').eq('business_id',state.business.id).order('title');if(error)throw error;state.listings=data||[];fillListingSelect();await loadListingData();
+  if(!businessCan(state.business,'content')){state.listings=[];fillListingSelect();throw new Error('This staff role does not have rates and listing-content access.');}
+  const {data,error}=await state.client.from('listings').select('id,title,category,status,currency,is_active,revision_of_listing_id,revision_number').eq('business_id',state.business.id).order('title').order('revision_number',{ascending:true,nullsFirst:true});if(error)throw error;state.listings=data||[];fillListingSelect();await loadListingData();
 }
 
 function bindEvents(){
