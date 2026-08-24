@@ -37,7 +37,7 @@ function applyVisitBaaBranding() {
         border-radius: 0;
         background: transparent;
         box-shadow: none;
-        filter: drop-shadow(0 3px 7px rgba(0,0,0,.52)) drop-shadow(0 0 1px rgba(255,255,255,.22));
+        filter: drop-shadow(0 3px 7px rgba(0,0,0,.42));
       }
       .nav .visit-baa-brand-logo {
         height: 72px;
@@ -49,10 +49,18 @@ function applyVisitBaaBranding() {
       }
       .brand:has(.visit-baa-brand-logo) {
         line-height: 0;
-        padding: 0;
-        background: transparent;
-        border-radius: 0;
-        box-shadow: none;
+        padding: 7px 12px;
+        border: 1px solid rgba(255,255,255,.16);
+        border-radius: 18px;
+        background: rgba(3,30,36,.58);
+        box-shadow: 0 10px 28px rgba(0,0,0,.22);
+        backdrop-filter: blur(10px) saturate(120%);
+        -webkit-backdrop-filter: blur(10px) saturate(120%);
+      }
+      .brand:has(.visit-baa-brand-logo):hover,
+      .brand:has(.visit-baa-brand-logo):focus-visible {
+        background: rgba(3,30,36,.72);
+        border-color: rgba(255,255,255,.25);
       }
       @media (max-width: 550px) {
         .visit-baa-brand-logo,
@@ -63,6 +71,10 @@ function applyVisitBaaBranding() {
           border-radius: 0;
         }
         .auth-story .visit-baa-brand-logo { height: 64px; }
+        .brand:has(.visit-baa-brand-logo) {
+          padding: 5px 8px;
+          border-radius: 14px;
+        }
       }
     `;
     document.head.append(style);
