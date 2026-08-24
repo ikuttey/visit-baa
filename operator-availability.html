@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Manual availability — Visit Baa</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/app.css">
+  <style>
+    .availability-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:20px;align-items:start}
+    .availability-note{padding:16px 18px;border:1px solid rgba(11,102,117,.22);border-radius:16px;background:rgba(77,211,225,.08)}
+    .availability-note strong{display:block;margin-bottom:6px}
+    .inventory-table-wrap{overflow-x:auto}
+    .inventory-table{width:100%;border-collapse:collapse}
+    .inventory-table th,.inventory-table td{padding:12px 10px;border-bottom:1px solid rgba(15,45,55,.12);text-align:left;vertical-align:middle}
+    .inventory-table th{font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+    .inventory-good{font-weight:700}
+    .inventory-zero{font-weight:700}
+    .source-chip{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:rgba(15,45,55,.08);font-size:.82rem;font-weight:700}
+    .compact-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .full-span{grid-column:1/-1}
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header-inner">
+        <a href="index.html" class="brand"><span class="brand-mark"></span>Visit Baa</a>
+        <nav class="app-nav" aria-label="Operator navigation">
+          <a href="operator-dashboard.html">Business dashboard</a>
+          <a href="listings.html">Public listings</a>
+          <button type="button" class="text-button" id="logoutButton">Log out</button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="page-wrap">
+      <div class="page-heading">
+        <div>
+          <span class="eyebrow">Accommodation inventory</span>
+          <h1>Manual availability</h1>
+          <p>Keep Visit Baa availability aligned with Agoda, Booking.com, direct and walk-in reservations until a live channel-manager connection is added.</p>
+        </div>
+      </div>
+
+      <div id="configMessage" hidden></div>
+      <div id="pageMessage" role="status" aria-live="polite" hidden></div>
+
+      <section class="panel availability-note" aria-labelledby="manualRuleTitle">
+        <strong id="manualRuleTitle">Important manual-sync rule</strong>
+        <span>Whenever a room is confirmed outside Visit Baa, add it here immediately. Visit Baa customer accommodation requests still require operator confirmation before inventory is committed.</span>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div><h2>Choose business</h2><p>Only accommodation listings and room types belonging to your account are available here.</p></div>
+        </div>
+        <div class="field">
+          <label for="businessSwitcher">Business</label>
+          <select id="businessSwitcher"></select>
+        </div>
+      </section>
+
+      <div class="availability-actions">
+        <section class="panel">
+          <div class="panel-head"><div><h2>Add external booking</h2><p>Use this when a booking is confirmed on Agoda, Booking.com, by phone, or as a walk-in.</p></div></div>
+          <form id="externalBookingForm">
+            <div class="form-grid">
+              <div class="field full"><label for="externalListing">Accommodation listing</label><select id="externalListing" required></select></div>
+              <div class="field full"><label for="externalRoom">Room type</label><select id="externalRoom" required></select></div>
+              <div class="field"><label for="externalSource">Booking source</label><select id="externalSource" required><option value="agoda">Agoda</option><option value="booking_com">Booking.com</option><option value="direct">Direct booking</option><option value="walk_in">Walk-in</option><option value="other">Other</option></select></div>
+              <div class="field"><label for="externalReference">External reference</label><input id="externalReference" maxlength="160" placeholder="Example: Agoda booking ID"></div>
+              <div class="field"><label for="externalCheckIn">Check-in</label><input id="externalCheckIn" type="date" required></div>
+              <div class="field"><label for="externalCheckOut">Check-out</label><input id="externalCheckOut" type="date" required></div>
+              <div class="field"><label for="externalRooms">Rooms booked</label><input id="externalRooms" type="number" min="1" value="1" required></div>
+              <div class="field"><label for="externalGuestName">Guest name</label><input id="externalGuestName" maxlength="160" placeholder="Optional"></div>
+              <div class="field full"><label for="externalNotes">Notes</label><textarea id="externalNotes" maxlength="1000" placeholder="Optional internal note"></textarea></div>
+            </div>
+            <div class="form-actions"><button class="button aqua" type="submit">Add booking &amp; block inventory</button></div>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><div><h2>Set room availability in bulk</h2><p>Open or close a date range without editing every night individually.</p></div></div>
+          <form id="availabilityRangeForm">
+            <div class="form-grid">
+              <div class="field full"><label for="rangeListing">Accommodation listing</label><select id="rangeListing" required></select></div>
+              <div class="field full"><label for="rangeRoom">Room type</label><select id="rangeRoom" required></select></div>
+              <div class="field"><label for="rangeStart">First date</label><input id="rangeStart" type="date" required></div>
+              <div class="field"><label for="rangeEnd">Last date</label><input id="rangeEnd" type="date" required></div>
+              <div class="field"><label for="rangeAvailable">Rooms available</label><input id="rangeAvailable" type="number" min="0" required><small id="rangeQuantityHelp"></small></div>
+              <div class="field"><label for="rangePrice">Nightly price override</label><input id="rangePrice" type="number" min="0" step="0.01" placeholder="Leave blank for normal price"></div>
+              <label class="checkbox field full"><input id="rangeBlocked" type="checkbox"><span>Close/block every selected date. Available rooms will be set to 0.</span></label>
+            </div>
+            <div class="form-actions"><button class="button aqua" type="submit">Save date range</button></div>
+          </form>
+        </section>
+      </div>
+
+      <section class="panel">
+        <div class="panel-head"><div><h2>External bookings</h2><p>These reservations currently reduce Visit Baa room availability.</p></div><button id="refreshButton" class="button secondary" type="button">Refresh</button></div>
+        <div id="externalBookingsTable"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><div><h2>Upcoming room inventory</h2><p>The exact room availability Visit Baa customers and Manta should use.</p></div></div>
+        <div class="field"><label for="inventoryRoomFilter">Room filter</label><select id="inventoryRoomFilter"><option value="">All room types</option></select></div>
+        <div id="roomInventoryTable"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="config.js"></script>
+  <script type="module" src="assets/js/operator-availability.js"></script>
+</body>
+</html>
