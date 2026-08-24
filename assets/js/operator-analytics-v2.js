@@ -15,6 +15,11 @@ const toInput=document.getElementById('analyticsTo');
 
 function setText(id,value){const node=document.getElementById(id);if(node)node.textContent=value;}
 function escapeHtml(value){return String(value??'').replace(/[&<>'"]/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+function moneyMap(values,empty='—'){
+  const entries=Object.entries(values||{}).filter(([,amount])=>amount!=null&&Number.isFinite(Number(amount)));
+  if(!entries.length)return empty;
+  return entries.map(([currency,amount])=>formatMoney(amount,currency)).join(' · ');
+}
 
 function defaultDates(days=30){
   const to=localDateString();
@@ -24,11 +29,10 @@ function defaultDates(days=30){
 
 function renderSummary(){
   const a=state.summary||{};
-  const currency=state.listings.find((item)=>item.revenue>0)?.currency||'USD';
-  setText('aRevenue',formatMoney(a.confirmed_revenue||0,currency));
+  setText('aRevenue',moneyMap(a.confirmed_value_by_currency,'$0.00'));
   setText('aBookings',a.confirmed_bookings??0);
   setText('aOccupancy',a.occupancy_percent==null?'—':`${a.occupancy_percent}%`);
-  setText('aADR',a.adr==null?'—':formatMoney(a.adr,currency));
+  setText('aADR',moneyMap(a.adr_by_currency));
   setText('aCancel',`${a.cancellation_rate??0}%`);
   setText('aConversion',`${a.conversion_percent??0}%`);
   setText('aStay',`${a.average_stay??0} nights`);
@@ -48,7 +52,7 @@ function renderListings(){
   const container=document.getElementById('listingPerformance');
   if(!container)return;
   if(!state.listings.length){container.innerHTML='<div class="empty-state"><strong>No listing performance yet</strong><span>Views and reservations will appear here as travelers use your listings.</span></div>';return;}
-  container.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Listing</th><th>Views</th><th>Requests</th><th>Confirmed</th><th>Conversion</th><th>Recorded value</th></tr></thead><tbody>${state.listings.map((item)=>`<tr><td><strong>${escapeHtml(item.title)}</strong><small class="table-subline">${escapeHtml(String(item.category||'').replaceAll('_',' '))}</small></td><td>${item.views??0}</td><td>${item.enquiries??0}</td><td>${item.confirmed??0}</td><td>${item.conversion_percent??0}%</td><td>${formatMoney(item.revenue||0,'USD')}</td></tr>`).join('')}</tbody></table></div>`;
+  container.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Listing</th><th>Views</th><th>Requests</th><th>Confirmed</th><th>Conversion</th><th>Recorded value</th></tr></thead><tbody>${state.listings.map((item)=>`<tr><td><strong>${escapeHtml(item.title)}</strong><small class="table-subline">${escapeHtml(String(item.category||'').replaceAll('_',' '))}</small></td><td>${item.views??0}</td><td>${item.enquiries??0}</td><td>${item.confirmed??0}</td><td>${item.conversion_percent??0}%</td><td>${escapeHtml(moneyMap(item.revenue_by_currency,'—'))}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 async function loadAnalytics(){
@@ -59,7 +63,7 @@ async function loadAnalytics(){
     const to=toInput.value||localDateString();
     const [summaryResult,listResult]=await Promise.all([
       state.client.rpc('operator_business_analytics',{p_business_id:state.business.id,p_from:from,p_to:to}),
-      state.client.rpc('operator_listing_analytics',{p_business_id:state.business.id,p_from:from,p_to:to})
+      state.client.rpc('operator_listing_analytics_v2',{p_business_id:state.business.id,p_from:from,p_to:to})
     ]);
     if(summaryResult.error)throw summaryResult.error;
     if(listResult.error)throw listResult.error;
