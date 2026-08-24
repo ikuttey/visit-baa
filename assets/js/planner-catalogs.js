@@ -22,7 +22,12 @@ export function normalizeActivityTypes(rows=[]){
 }
 
 export function listingMatchesActivityType(listing,type){
-  if((listing.activity_type_slugs||[]).includes(type.slug))return true;
+  const structured=Array.isArray(listing.activity_type_slugs)?listing.activity_type_slugs.filter(Boolean):[];
+  // New listings have explicit activity tags. When they exist, treat them as
+  // authoritative so a sandbank trip is not also reused as a generic boat
+  // excursion merely because both share the broad `excursion` category.
+  if(structured.length)return structured.includes(type.slug);
+  // Legacy listings without structured tags still use category/text fallback.
   if(!(type.listing_categories||[]).includes(listing.category))return false;
   if(!type.requires_term_match)return true;
   const searchable=[listing.title,listing.summary,listing.description,...(listing.amenities||[]),...(listing.included_items||[])].filter(Boolean).join(' ').toLowerCase();
