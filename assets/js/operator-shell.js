@@ -83,6 +83,12 @@ export function fillBusinessSwitcher(select,businesses,business){
   select.disabled=false;select.value=business?.id||businesses[0].id;
 }
 
+function clearInvalidNoBusinessDrafts(){
+  const keys=[];
+  for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(key?.startsWith('visit_baa_listing_draft:none:'))keys.push(key);}
+  keys.forEach((key)=>localStorage.removeItem(key));
+}
+
 export async function initializeOperatorPage(active='overview'){
   const user=await requireOperator();
   const logoutButton=document.getElementById('logoutButton');
@@ -92,7 +98,7 @@ export async function initializeOperatorPage(active='overview'){
   }
   const businesses=await loadOwnedBusinesses();
   const business=chooseBusiness(businesses);
-  if(business)rememberBusiness(business.id);else localStorage.removeItem('baa_operator_business_id');
+  if(business)rememberBusiness(business.id);else{localStorage.removeItem('baa_operator_business_id');clearInvalidNoBusinessDrafts();}
   installOperatorNavigation(active,business);
 
   if(active==='listings'&&!business){
