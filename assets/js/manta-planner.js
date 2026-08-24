@@ -2,7 +2,7 @@ import { nightsBetween } from './marketplace.js';
 import { applyMantaOverride, normalizeSimpleAnswers, ROOM_PREFERENCES, STAY_PREFERENCES } from './manta-preferences.js';
 
 const asset='assets/images/manta-planner.png?v=5';
-const personalityCss='assets/css/manta-personality.css?v=1';
+const personalityCss='assets/css/manta-personality.css?v=2';
 const steps=['island','dates','travelers','stayPreference','roomPreference','activities'];
 const defaults={islands:[],activities:[],adults:2,children:0,rooms:1,startDate:'',endDate:'',flexible:false,nightsByIsland:{},activityPlan:{},stayPreference:'none',roomPreference:'none',stayPreferenceRequired:false,roomPreferenceRequired:false,recommendationMode:'best_value',budget:null};
 const state={step:0,data:null,module:null,answers:{...defaults}};
