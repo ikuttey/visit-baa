@@ -108,7 +108,10 @@ export async function initializeOperatorPage(active='overview'){
   }
 
   queueMicrotask(()=>import('./operator-notifications.js?v=2').catch((error)=>console.error('Operator notification center failed:',error)));
-  if(active==='listings'&&business)queueMicrotask(()=>import('./operator-content-enhancements.js?v=2').catch((error)=>console.error('Listing enhancements failed:',error)));
+  if(active==='listings'&&business){
+    await import('./operator-content-compat-v2.js?v=1').catch((error)=>console.error('Listing schema compatibility failed:',error));
+    queueMicrotask(()=>import('./operator-content-enhancements.js?v=2').catch((error)=>console.error('Listing enhancements failed:',error)));
+  }
   return {client:requireSupabase(),user,businesses,business};
 }
 
