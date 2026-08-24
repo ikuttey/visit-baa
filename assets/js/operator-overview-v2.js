@@ -2,7 +2,6 @@ import { requireSupabase } from './supabase-client.js';
 import { installOperatorNavigation,formatMoney,localDateString,addDays } from './operator-shell.js';
 
 const client=requireSupabase();
-let currentBusinessId='';
 let timer;
 
 function el(tag,options={}){const node=document.createElement(tag);if(options.className)node.className=options.className;if(options.text!=null)node.textContent=String(options.text);if(options.attrs)Object.entries(options.attrs).forEach(([k,v])=>node.setAttribute(k,String(v)));(options.children||[]).filter(Boolean).forEach((child)=>node.append(child));return node;}
@@ -18,24 +17,26 @@ function installV2Overview(){
   summary.insertAdjacentElement('afterend',section);
 }
 
-function text(id,value){const node=document.getElementById(id);if(node)node.textContent=value;}
+function text(id,value){const node=document.getElementById(id);if(node&&node.textContent!==String(value))node.textContent=value;}
 
 async function loadMetrics(businessId){
   if(!businessId)return;
   const to=localDateString(),from=addDays(to,-29);
   const {data,error}=await client.rpc('operator_business_analytics',{p_business_id:businessId,p_from:from,p_to:to});
   if(error){console.error('Overview metrics failed:',error);return;}
-  text('ovConfirmed',data?.confirmed_bookings??0);text('ovRevenue',formatMoney(data?.confirmed_revenue||0,'USD'));text('ovOccupancy',data?.occupancy_percent==null?'—':`${data.occupancy_percent}%`);text('ovADR',data?.adr==null?'—':formatMoney(data.adr,'USD'));text('ovCancel',`${data?.cancellation_rate??0}%`);text('ovViews',data?.listing_views??0);
-  const arrivals=document.getElementById('availableSpacesCount');if(arrivals)arrivals.textContent=data?.arrivals_today??0;
+  text('ovConfirmed',data?.confirmed_bookings??0);text('ovRevenue',formatMoney(data?.confirmed_revenue||0,'USD'));text('ovOccupancy',data?.occupancy_percent==null?'—':`${data.occupancy_percent}%`);text('ovADR',data?.adr==null?'—':formatMoney(data.adr,'USD'));text('ovCancel',`${data?.cancellation_rate??0}%`);text('ovViews',data?.listing_views??0);text('availableSpacesCount',data?.arrivals_today??0);
 }
 
 function selectedBusiness(){const select=document.getElementById('businessSwitcher');return select?.value||localStorage.getItem('baa_operator_business_id')||'';}
-function refresh(){clearTimeout(timer);timer=setTimeout(()=>{const id=selectedBusiness();if(!id)return;if(id!==currentBusinessId)currentBusinessId=id;loadMetrics(id);},120);}
+function refresh(){clearTimeout(timer);timer=setTimeout(()=>{const id=selectedBusiness();if(id)loadMetrics(id);},180);}
 
 function init(){
-  installV2Overview();refresh();
-  const select=document.getElementById('businessSwitcher');if(select)select.addEventListener('change',()=>{currentBusinessId='';refresh();});
-  const observer=new MutationObserver(refresh);const summary=document.querySelector('.summary-grid');if(summary)observer.observe(summary,{subtree:true,childList:true,characterData:true});
+  installV2Overview();
+  const select=document.getElementById('businessSwitcher');
+  if(select)select.addEventListener('change',refresh);
+  // The legacy dashboard finishes its own initial business load asynchronously.
+  // Refresh a few times during startup without observing metric text changes.
+  [250,800,1800].forEach((delay)=>setTimeout(refresh,delay));
   window.addEventListener('focus',refresh);
 }
 
