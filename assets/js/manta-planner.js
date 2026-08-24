@@ -2,12 +2,20 @@ import { nightsBetween } from './marketplace.js';
 import { applyMantaOverride, normalizeSimpleAnswers, ROOM_PREFERENCES, STAY_PREFERENCES } from './manta-preferences.js';
 
 const asset='assets/images/manta-planner.png?v=5';
+const personalityCss='assets/css/manta-personality.css?v=1';
 const steps=['island','dates','travelers','stayPreference','roomPreference','activities'];
 const defaults={islands:[],activities:[],adults:2,children:0,rooms:1,startDate:'',endDate:'',flexible:false,nightsByIsland:{},activityPlan:{},stayPreference:'none',roomPreference:'none',stayPreferenceRequired:false,roomPreferenceRequired:false,recommendationMode:'best_value',budget:null};
 const state={step:0,data:null,module:null,answers:{...defaults}};
 const el=(tag,{className='',text='',attrs={},children=[]}={})=>{const node=document.createElement(tag);if(className)node.className=className;if(text!=='')node.textContent=text;Object.entries(attrs).forEach(([key,value])=>{if(value!==null&&value!==undefined)node.setAttribute(key,String(value));});children.filter(Boolean).forEach((child)=>node.append(child));return node;};
 
-const launch=el('button',{className:'manta-planner-launch',attrs:{type:'button','aria-label':'Open Visit Baa Trip Planner'},children:[el('img',{attrs:{src:asset,alt:''}}),el('span',{className:'manta-planner-tooltip',text:'Plan your Baa trip'})]});
+if(!document.querySelector('link[data-manta-personality]')){
+  const stylesheet=el('link',{attrs:{rel:'stylesheet',href:personalityCss,'data-manta-personality':'true'}});
+  document.head.append(stylesheet);
+}
+
+const launch=el('button',{className:'manta-planner-launch',attrs:{type:'button','aria-label':'Open Visit Baa Trip Planner'},children:[el('img',{attrs:{src:asset,alt:''}}),el('span',{className:'manta-planner-tooltip',text:'Hi, I’m Manta — plan your Baa trip'})]});
+const greetingText=el('span');
+const greeting=el('aside',{className:'manta-planner-greeting',attrs:{'aria-live':'polite','aria-atomic':'true'},children:[greetingText]});
 const drawer=el('dialog',{className:'manta-planner-drawer',attrs:{'aria-labelledby':'mantaPlannerTitle'}});
 const close=el('button',{className:'manta-planner-close',text:'×',attrs:{type:'button','aria-label':'Close trip planner'}});
 const title=el('header',{className:'manta-planner-titlebar',children:[el('img',{attrs:{src:asset,alt:''}}),el('div',{children:[el('strong',{text:'Visit Baa Trip Planner',attrs:{id:'mantaPlannerTitle'}}),el('small',{text:'Six quick choices'})]}),close]});
@@ -18,7 +26,44 @@ const restart=el('button',{text:'Restart',attrs:{type:'button'}});
 const question=el('section',{className:'manta-question'});
 const footer=el('div',{className:'manta-question-footer'});
 drawer.append(title,el('div',{className:'manta-planner-progress',children:[progressText,progressBar]}),el('div',{className:'manta-planner-controls',children:[back,restart]}),question,footer);
-document.body.append(launch,drawer);
+document.body.append(launch,greeting,drawer);
+
+const personality={timers:[],bubbleTimer:null,stopped:false,closedPromptShown:false};
+
+function clearPersonalityTimers(){personality.timers.forEach((id)=>clearTimeout(id));personality.timers=[];if(personality.bubbleTimer){clearTimeout(personality.bubbleTimer);personality.bubbleTimer=null;}}
+function hideGreeting(){greeting.classList.remove('show');greeting.removeAttribute('data-tone');}
+function animateLaunch(className,duration=900){launch.classList.remove(className);void launch.offsetWidth;launch.classList.add(className);window.setTimeout(()=>launch.classList.remove(className),duration);}
+function personalityTimer(handler,delay){const id=window.setTimeout(()=>{personality.timers=personality.timers.filter((item)=>item!==id);if(personality.stopped||drawer.open||document.visibilityState==='hidden')return;handler();},delay);personality.timers.push(id);return id;}
+function speak(text,duration=3800,tone=''){
+  if(personality.stopped||drawer.open||document.visibilityState==='hidden')return;
+  if(personality.bubbleTimer)clearTimeout(personality.bubbleTimer);
+  greetingText.textContent=text;
+  if(tone)greeting.dataset.tone=tone;else greeting.removeAttribute('data-tone');
+  greeting.classList.add('show');
+  animateLaunch('is-speaking',820);
+  personality.bubbleTimer=window.setTimeout(()=>{hideGreeting();personality.bubbleTimer=null;},duration);
+}
+function stopPersonality(){personality.stopped=true;clearPersonalityTimers();hideGreeting();launch.classList.remove('manta-arrive','is-speaking','is-curious');}
+function schedulePersonality(){
+  if(new URLSearchParams(location.search).get('resumePlanner')==='1')return;
+  personality.stopped=false;
+  launch.classList.add('manta-arrive');
+  window.setTimeout(()=>launch.classList.remove('manta-arrive'),1300);
+  let lastSeen=0;
+  try{lastSeen=Number(sessionStorage.getItem('baa_manta_intro_seen_at')||0);}catch{}
+  const fresh=!lastSeen||Date.now()-lastSeen>30*60*1000;
+  if(fresh){
+    personalityTimer(()=>speak('Hi! 👋 I’m Manta.',2800,'hello'),1400);
+    personalityTimer(()=>speak('I can help plan your Baa trip using real Visit Baa stays, activities and transfers.',3900),5200);
+    personalityTimer(()=>speak('Tell me your island, dates and what you want to do — I’ll put the trip together.',4300),10800);
+    personalityTimer(()=>animateLaunch('is-curious',2500),19000);
+    personalityTimer(()=>{animateLaunch('is-curious',2500);speak('Ready when you are 🌊 Tap me to start planning.',4400,'ready');},27000);
+    try{sessionStorage.setItem('baa_manta_intro_seen_at',String(Date.now()));}catch{}
+  }else{
+    personalityTimer(()=>speak('Need help planning your Baa trip? Tap me when you’re ready. 🌊',4200,'ready'),2800);
+    personalityTimer(()=>animateLaunch('is-curious',2500),15000);
+  }
+}
 
 function assistant(text){return el('div',{className:'manta-message assistant',children:[el('img',{attrs:{src:asset,alt:''}}),el('p',{text})]});}
 function button(text,handler,style='primary'){const node=el('button',{className:`manta-action ${style}`,text,attrs:{type:'button'}});node.addEventListener('click',handler);return node;}
@@ -125,9 +170,10 @@ async function load(){
   render();
 }
 
-launch.addEventListener('click',async()=>{drawer.showModal();launch.hidden=true;try{await load();}catch{question.replaceChildren(el('p',{className:'manta-inline warning',text:'Current Visit Baa services could not be loaded. Please try again.'}));setFooter();}});
+launch.addEventListener('click',async()=>{stopPersonality();drawer.showModal();launch.hidden=true;try{await load();}catch{question.replaceChildren(el('p',{className:'manta-inline warning',text:'Current Visit Baa services could not be loaded. Please try again.'}));setFooter();}});
 close.addEventListener('click',()=>drawer.close());
-drawer.addEventListener('close',()=>{launch.hidden=false;});
+drawer.addEventListener('close',()=>{launch.hidden=false;if(!personality.closedPromptShown){personality.closedPromptShown=true;personality.stopped=false;personalityTimer(()=>speak('I’ll be right here if you want to keep planning. 🌊',4200,'ready'),900);}});
 back.addEventListener('click',()=>go(state.step-1));
 restart.addEventListener('click',()=>{state.answers={...defaults,islands:[],activities:[],nightsByIsland:{},activityPlan:{}};go(0);});
-if(new URLSearchParams(location.search).get('resumePlanner')==='1'&&localStorage.getItem('baa_planner_draft'))launch.click();
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')hideGreeting();});
+if(new URLSearchParams(location.search).get('resumePlanner')==='1'&&localStorage.getItem('baa_planner_draft'))launch.click();else schedulePersonality();
