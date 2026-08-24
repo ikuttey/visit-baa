@@ -87,6 +87,23 @@ function simplifyBusinessWizard() {
   }
 }
 
+function addManualAvailabilityShortcut() {
+  const panel = document.querySelector('[data-tab-panel="availability"]');
+  if (!panel || document.getElementById('manualAvailabilityShortcut')) return;
+  const heading = panel.querySelector('.panel .panel-head');
+  if (!heading) return;
+  const link = createElement('a', {
+    className: 'button aqua',
+    text: 'Manual booking sync',
+    attrs: {
+      id: 'manualAvailabilityShortcut',
+      href: 'operator-availability.html',
+      title: 'Record Agoda, Booking.com, direct and walk-in bookings'
+    }
+  });
+  heading.append(link);
+}
+
 function universalChoicesPresent(host) {
   return host.children.length === LISTING_CHOICES.length && [...host.children].every((child) => child.dataset.simpleListingChoice === '1');
 }
@@ -124,6 +141,7 @@ function renderUniversalListingChoices() {
 function boot() {
   if (!document.getElementById('businessForm') || !document.getElementById('listingForm')) return;
   simplifyBusinessWizard();
+  addManualAvailabilityShortcut();
   renderUniversalListingChoices();
 
   const host = document.getElementById('listingTypeCards');
