@@ -8,7 +8,7 @@ export const OPERATOR_NAV = [
   ['listings','operator-content.html','Listings'],
   ['property','operator-dashboard.html?tab=business','Property'],
   ['rates','operator-rates.html','Rates & Promotions'],
-  ['reviews','operator-dashboard.html?tab=reviewsOffers','Reviews & Messages'],
+  ['reviews','operator-reviews.html','Reviews'],
   ['analytics','operator-analytics.html','Analytics'],
   ['settings','operator-settings.html','Settings']
 ];
@@ -34,8 +34,9 @@ function navAllowed(key,business){
   if(key==='calendar')return businessCan(business,'calendar');
   if(key==='reservations')return businessCan(business,'reservations')||businessCan(business,'finance');
   if(key==='listings'||key==='rates')return businessCan(business,'content');
+  if(key==='reviews')return businessCan(business,'staff_admin');
   if(key==='analytics')return businessCan(business,'analytics');
-  // Property verification and the legacy review-response page remain owner-only.
+  // Business identity / verification fields remain owner-only.
   return false;
 }
 
