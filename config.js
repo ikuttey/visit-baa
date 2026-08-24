@@ -17,7 +17,7 @@ function applyVisitBaaBranding() {
     const icon = document.createElement('link');
     icon.rel = 'icon';
     icon.type = 'image/png';
-    icon.href = 'assets/images/visit-baa-icon.png?v=2';
+    icon.href = 'assets/images/visit-baa-icon.png?v=3';
     icon.dataset.visitBaaIcon = 'true';
     document.head.append(icon);
   }
@@ -32,35 +32,38 @@ function applyVisitBaaBranding() {
         height: 66px;
         max-width: min(280px, 48vw);
         object-fit: contain;
+        image-rendering: auto;
         padding: 0;
         border: 0;
         border-radius: 0;
         background: transparent;
         box-shadow: none;
-        filter: drop-shadow(0 3px 7px rgba(0,0,0,.42));
+        filter: none;
+        transform: none;
       }
       .nav .visit-baa-brand-logo {
-        height: 72px;
+        height: 68px;
         max-width: min(300px, 48vw);
       }
       .auth-story .visit-baa-brand-logo {
-        height: 80px;
+        height: 76px;
         max-width: 320px;
       }
       .brand:has(.visit-baa-brand-logo) {
         line-height: 0;
         padding: 7px 12px;
-        border: 1px solid rgba(255,255,255,.16);
+        border: 1px solid rgba(255,255,255,.18);
         border-radius: 18px;
-        background: rgba(3,30,36,.58);
-        box-shadow: 0 10px 28px rgba(0,0,0,.22);
-        backdrop-filter: blur(10px) saturate(120%);
-        -webkit-backdrop-filter: blur(10px) saturate(120%);
+        background: rgba(4,46,55,.86);
+        box-shadow: 0 8px 22px rgba(0,0,0,.24);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        transform: none;
       }
       .brand:has(.visit-baa-brand-logo):hover,
       .brand:has(.visit-baa-brand-logo):focus-visible {
-        background: rgba(3,30,36,.72);
-        border-color: rgba(255,255,255,.25);
+        background: rgba(4,46,55,.96);
+        border-color: rgba(255,255,255,.28);
       }
       @media (max-width: 550px) {
         .visit-baa-brand-logo,
@@ -84,7 +87,7 @@ function applyVisitBaaBranding() {
     if (/admin/i.test(brand.textContent || '') || brand.closest('.app-header')?.querySelector('[aria-label*="Admin"]')) return;
     brand.href = 'index.html';
     brand.setAttribute('aria-label', 'Visit Baa home');
-    brand.innerHTML = '<img class="visit-baa-brand-logo" src="assets/images/visit-baa-logo.png?v=2" alt="Visit Baa">';
+    brand.innerHTML = '<img class="visit-baa-brand-logo" src="assets/images/visit-baa-logo.png?v=3" alt="Visit Baa" decoding="sync" fetchpriority="high">';
   });
 }
 
