@@ -1,19 +1,4 @@
-import { requireSupabase } from './supabase-client.js';
-import { createElement, setMessage } from './ui.js';
-
-const CATEGORY_TO_SERVICE = Object.freeze({
-  accommodation: 'accommodation',
-  excursion: 'excursions',
-  snorkelling: 'excursions',
-  diving: 'diving',
-  transfer: 'transport',
-  fishing: 'fishing',
-  watersports: 'watersports',
-  food_dining: 'food-dining',
-  conservation_experience: 'conservation',
-  community_experience: 'local-experiences',
-  other: 'other'
-});
+import { createElement } from './ui.js';
 
 const LISTING_CHOICES = Object.freeze([
   { label: 'Accommodation', category: 'accommodation', kind: 'standard', detail: 'Rooms, guesthouses and stays' },
@@ -33,6 +18,7 @@ function simplifyBusinessWizard() {
   const serviceField = serviceChoices?.closest('fieldset');
   if (serviceField) {
     serviceField.hidden = true;
+    serviceField.style.display = 'none';
     serviceField.setAttribute('aria-hidden', 'true');
   }
 
@@ -58,6 +44,9 @@ function simplifyBusinessWizard() {
     form.before(note);
   }
 
+  // The existing schema still expects one legacy capability during business
+  // registration. Keep a hidden compatibility value; real capabilities are
+  // added automatically by Supabase when the verified business creates listings.
   const ensureCompatibilityChoice = () => {
     const checked = serviceChoices?.querySelector('[name="operatorService"]:checked');
     if (checked) return;
@@ -132,66 +121,9 @@ function renderUniversalListingChoices() {
   }));
 }
 
-async function ensureBusinessServiceForListing(category) {
-  const businessId = document.getElementById('businessSwitcher')?.value;
-  if (!businessId) throw new Error('Choose a verified business before creating a listing.');
-  const slug = CATEGORY_TO_SERVICE[category] || 'other';
-  const client = requireSupabase();
-
-  const serviceResult = await client
-    .from('service_categories')
-    .select('id,slug')
-    .eq('slug', slug)
-    .eq('is_active', true)
-    .maybeSingle();
-  if (serviceResult.error) throw serviceResult.error;
-  if (!serviceResult.data?.id) throw new Error(`The service category “${slug}” is not available.`);
-
-  const existing = await client
-    .from('business_service_categories')
-    .select('service_category_id')
-    .eq('business_id', businessId)
-    .eq('service_category_id', serviceResult.data.id)
-    .maybeSingle();
-  if (existing.error) throw existing.error;
-  if (existing.data) return;
-
-  const inserted = await client.from('business_service_categories').insert({
-    business_id: businessId,
-    service_category_id: serviceResult.data.id
-  });
-  if (inserted.error) throw inserted.error;
-}
-
-function bindListingCapabilitySync() {
-  const form = document.getElementById('listingForm');
-  const message = document.getElementById('dashboardMessage');
-  if (!form || form.dataset.simpleCapabilitySync === 'bound') return;
-  form.dataset.simpleCapabilitySync = 'bound';
-  let replay = false;
-
-  form.addEventListener('submit', async (event) => {
-    if (replay) {
-      replay = false;
-      return;
-    }
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    try {
-      await ensureBusinessServiceForListing(document.getElementById('listingCategory').value);
-      replay = true;
-      const submitButton = form.querySelector('button[type="submit"]');
-      submitButton ? form.requestSubmit(submitButton) : form.requestSubmit();
-    } catch (error) {
-      setMessage(message, `The service could not be linked to this business: ${error.message}`, 'error');
-    }
-  }, true);
-}
-
 function boot() {
   if (!document.getElementById('businessForm') || !document.getElementById('listingForm')) return;
   simplifyBusinessWizard();
-  bindListingCapabilitySync();
   renderUniversalListingChoices();
 
   const host = document.getElementById('listingTypeCards');
