@@ -57,7 +57,7 @@ function normalizeHomepageNavigation() {
 
 function accountDestination(roles) {
   if (roles.includes('admin')) return { href: 'admin-dashboard.html', label: 'Admin Dashboard' };
-  if (roles.includes('operator')) return { href: 'operator-dashboard.html', label: 'Operator Dashboard' };
+  if (roles.includes('operator')) return { href: 'operator-overview.html', label: 'Operator Dashboard' };
   if (roles.includes('traveler')) return { href: 'traveler-dashboard.html', label: 'My Baa Trip' };
   return { href: 'login.html', label: 'Login' };
 }
@@ -76,7 +76,7 @@ function updateAccountLinks(destination) {
     footerOperatorLink.textContent = destination.label;
   }
 
-  if (destination.href === 'operator-dashboard.html') {
+  if (destination.href === 'operator-overview.html') {
     const businessCta = document.querySelector('.business-copy a.btn[href="register.html"]');
     if (businessCta) {
       businessCta.href = destination.href;
