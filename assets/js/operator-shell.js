@@ -5,7 +5,7 @@ export const OPERATOR_NAV = [
   ['overview','operator-overview.html','Overview'],
   ['calendar','operator-calendar.html','Calendar / Schedule'],
   ['reservations','operator-reservations.html','Reservations'],
-  ['listings','operator-dashboard.html?tab=listings','Listings'],
+  ['listings','operator-content.html','Listings'],
   ['property','operator-dashboard.html?tab=business','Property'],
   ['rates','operator-rates.html','Rates & Promotions'],
   ['reviews','operator-dashboard.html?tab=reviewsOffers','Reviews & Messages'],
@@ -33,10 +33,9 @@ function navAllowed(key,business){
   if(key==='overview'||key==='settings')return true;
   if(key==='calendar')return businessCan(business,'calendar');
   if(key==='reservations')return businessCan(business,'reservations')||businessCan(business,'finance');
-  if(key==='rates')return businessCan(business,'content');
+  if(key==='listings'||key==='rates')return businessCan(business,'content');
   if(key==='analytics')return businessCan(business,'analytics');
-  // The legacy Listings / Property / Reviews screen still contains owner-only
-  // assumptions. Keep those links owner-only until that editor is safely migrated.
+  // Property verification and the legacy review-response page remain owner-only.
   return false;
 }
 
@@ -53,8 +52,8 @@ export function installOperatorNavigation(active='overview',business=null){
 
   document.querySelector('.operator-mobile-actions')?.remove();
   const mobile=el('nav',{className:'operator-mobile-actions',attrs:{'aria-label':'Operator mobile navigation'}});
-  const mobileKeys=new Set(['overview','calendar','reservations','analytics','settings']);
-  allowed.filter(([key])=>mobileKeys.has(key)).forEach(([key,href,label])=>mobile.append(el('a',{text:key==='overview'?'Home':key==='reservations'?'Bookings':key==='analytics'?'Stats':label,attrs:{href,'aria-current':key===active?'page':'false'}})));
+  const mobileKeys=new Set(['overview','calendar','reservations','listings','analytics','settings']);
+  allowed.filter(([key])=>mobileKeys.has(key)).forEach(([key,href,label])=>mobile.append(el('a',{text:key==='overview'?'Home':key==='reservations'?'Bookings':key==='analytics'?'Stats':key==='listings'?'Listings':label,attrs:{href,'aria-current':key===active?'page':'false'}})));
   if(mobile.childElementCount)document.body.append(mobile);
 }
 
