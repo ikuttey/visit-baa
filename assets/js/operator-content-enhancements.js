@@ -69,7 +69,7 @@ if(!form||!editor||!table||!businessSwitcher||!listingId){
     const key=currentKey();if(!force&&key===recoveryFor)return;recoveryFor=key;
     const raw=localStorage.getItem(key);const box=document.getElementById('listingRecovery');
     if(!raw){box.hidden=true;return;}
-    try{const snap=JSON.parse(raw);box.hidden=false;box.dataset.key=key;box.dataset.snapshot=raw;}catch{localStorage.removeItem(key);box.hidden=true;}
+    try{JSON.parse(raw);box.hidden=false;box.dataset.key=key;box.dataset.snapshot=raw;}catch{localStorage.removeItem(key);box.hidden=true;}
   }
   function nonEmpty(id){return Boolean(String(document.getElementById(id)?.value||'').trim());}
   function updateCompleteness(){
@@ -112,9 +112,11 @@ if(!form||!editor||!table||!businessSwitcher||!listingId){
   }
 
   document.getElementById('previewCurrentDraft').addEventListener('click',()=>{
-    const snap=serialize();
-    sessionStorage.setItem('visit_baa_listing_preview',JSON.stringify(snap));
-    window.open('operator-listing-preview.html','_blank','noopener');
+    const token=crypto.randomUUID();
+    const key=`visit_baa_listing_preview:${token}`;
+    localStorage.setItem(key,JSON.stringify({...serialize(),expiresAt:Date.now()+5*60*1000}));
+    window.open(`operator-listing-preview.html?preview=${encodeURIComponent(token)}`,'_blank','noopener');
+    setTimeout(()=>localStorage.removeItem(key),5*60*1000);
   });
   document.getElementById('restoreRecovery').addEventListener('click',()=>{
     const raw=document.getElementById('listingRecovery').dataset.snapshot;if(!raw)return;
