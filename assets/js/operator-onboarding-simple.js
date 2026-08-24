@@ -87,6 +87,260 @@ function simplifyBusinessWizard() {
   }
 }
 
+function ensureBusinessLifecycleStyles() {
+  if (document.getElementById('businessLifecycleStyles')) return;
+  const style = document.createElement('style');
+  style.id = 'businessLifecycleStyles';
+  style.textContent = `
+    .business-lifecycle-card{display:grid;gap:14px;padding:18px;border:1px solid var(--line,#d8e6e4);border-radius:18px;background:var(--surface,#fff);margin-top:14px}
+    .business-lifecycle-card.verified{border-color:rgba(24,165,151,.38);background:linear-gradient(135deg,rgba(54,199,183,.10),rgba(255,255,255,.96))}
+    .business-lifecycle-card.pending_review{border-color:rgba(202,151,46,.35);background:linear-gradient(135deg,rgba(250,221,153,.18),rgba(255,255,255,.96))}
+    .business-lifecycle-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+    .business-lifecycle-title{display:grid;gap:4px}.business-lifecycle-title h3{margin:0;font-size:1.25rem}.business-lifecycle-title p{margin:0;color:var(--muted,#667b7c)}
+    .business-lifecycle-pill{display:inline-flex;width:max-content;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;background:rgba(16,117,108,.10)}
+    .business-lifecycle-copy{margin:0;max-width:760px;line-height:1.55}
+    .business-lifecycle-meta{display:flex;gap:8px 14px;flex-wrap:wrap;color:var(--muted,#667b7c);font-size:.92rem}
+    .business-lifecycle-actions{display:flex;gap:9px;flex-wrap:wrap}
+    .business-profile-editing{margin-top:16px;padding-top:16px;border-top:1px solid var(--line,#d8e6e4)}
+    @media(max-width:640px){.business-lifecycle-actions .button{width:100%;justify-content:center}.business-lifecycle-card{padding:15px}}
+  `;
+  document.head.append(style);
+}
+
+function businessStatusKey() {
+  const text = (document.getElementById('businessStatus')?.textContent || '').trim().toLowerCase();
+  if (text.includes('verified')) return 'verified';
+  if (text.includes('pending')) return 'pending_review';
+  if (text.includes('changes')) return 'changes_requested';
+  if (text.includes('rejected')) return 'rejected';
+  if (text.includes('registration')) return 'registration_required';
+  return '';
+}
+
+function selectedBusinessIdentity() {
+  return document.getElementById('businessSwitcher')?.value || '';
+}
+
+function fieldValue(id) {
+  return document.getElementById(id)?.value?.trim() || '';
+}
+
+function ensureEditCancelButton() {
+  const actions = document.getElementById('businessSubmitButton')?.closest('.form-actions');
+  if (!actions) return null;
+  let cancel = document.getElementById('businessProfileEditCancel');
+  if (!cancel) {
+    cancel = createElement('button', {
+      className: 'button secondary',
+      text: 'Cancel editing',
+      attrs: { id: 'businessProfileEditCancel', type: 'button' }
+    });
+    cancel.addEventListener('click', () => {
+      const form = document.getElementById('businessForm');
+      if (form) form.dataset.profileEditOpen = '0';
+      syncBusinessLifecycleUI();
+    });
+    actions.append(cancel);
+  }
+  return cancel;
+}
+
+function setBusinessProfileEditor(open, status) {
+  const form = document.getElementById('businessForm');
+  if (!form) return;
+  form.hidden = !open;
+  form.classList.toggle('business-profile-editing', open);
+
+  const progress = document.getElementById('businessWorkflowProgress');
+  const back = document.getElementById('businessStepBack');
+  const next = document.getElementById('businessStepNext');
+  const submit = document.getElementById('businessSubmitButton');
+  const cancel = ensureEditCancelButton();
+
+  if (!open) {
+    if (cancel) cancel.hidden = true;
+    return;
+  }
+
+  if (progress) progress.hidden = true;
+  if (back) back.hidden = true;
+  if (next) next.hidden = true;
+  if (submit) {
+    submit.hidden = false;
+    submit.textContent = 'Save business profile';
+  }
+  if (cancel) cancel.hidden = false;
+
+  document.querySelectorAll('[data-business-workflow-step]').forEach((node) => {
+    if (node.id === 'businessReviewSummary' || node.id === 'businessRegistrationAgreements') {
+      node.hidden = true;
+      return;
+    }
+    node.hidden = false;
+  });
+
+  const reviewSummary = document.getElementById('businessReviewSummary');
+  if (reviewSummary) reviewSummary.hidden = true;
+  const agreements = document.getElementById('businessRegistrationAgreements');
+  if (agreements) agreements.hidden = true;
+  const resubmit = document.getElementById('resubmitBusinessButton');
+  if (resubmit) resubmit.hidden = !['changes_requested', 'rejected'].includes(status);
+}
+
+function showRegistrationWizard() {
+  const form = document.getElementById('businessForm');
+  if (!form) return;
+  form.hidden = false;
+  form.classList.remove('business-profile-editing');
+  form.dataset.profileEditOpen = '0';
+  const progress = document.getElementById('businessWorkflowProgress');
+  if (progress) progress.hidden = false;
+  const cancel = document.getElementById('businessProfileEditCancel');
+  if (cancel) cancel.hidden = true;
+  document.querySelector('[data-business-step="0"]')?.click();
+}
+
+function lifecycleCard() {
+  const form = document.getElementById('businessForm');
+  if (!form) return null;
+  let card = document.getElementById('businessLifecycleCard');
+  if (!card) {
+    card = createElement('section', {
+      className: 'business-lifecycle-card',
+      attrs: { id: 'businessLifecycleCard', 'aria-live': 'polite' }
+    });
+    form.before(card);
+  }
+  return card;
+}
+
+function openListingFromBusinessCard() {
+  const listingsTab = document.querySelector('[data-tab="listings"]');
+  listingsTab?.click();
+  setTimeout(() => document.getElementById('newListingButton')?.click(), 0);
+}
+
+function renderLifecycleCard(status) {
+  const card = lifecycleCard();
+  if (!card) return;
+  card.hidden = false;
+  card.className = `business-lifecycle-card ${status}`;
+
+  const name = fieldValue('businessName') || 'Your business';
+  const island = fieldValue('businessIsland');
+  const email = fieldValue('businessEmail');
+  const phone = fieldValue('businessPhone');
+  const registration = fieldValue('registrationNumber');
+  const verified = status === 'verified';
+  const pending = status === 'pending_review';
+  const correction = ['changes_requested', 'rejected'].includes(status);
+
+  const pillText = verified ? '✓ Verified' : pending ? 'Pending verification' : status === 'changes_requested' ? 'Changes requested' : 'Review required';
+  const title = createElement('div', {
+    className: 'business-lifecycle-title',
+    children: [
+      createElement('span', { className: 'business-lifecycle-pill', text: pillText }),
+      createElement('h3', { text: name }),
+      createElement('p', { text: island ? `${island}, Baa Atoll` : 'Baa Atoll' })
+    ]
+  });
+
+  const head = createElement('div', { className: 'business-lifecycle-head', children: [title] });
+  const copy = createElement('p', {
+    className: 'business-lifecycle-copy',
+    text: verified
+      ? 'Your business is verified. You can now create services and listings, set operator-controlled prices, manage availability and receive enquiries.'
+      : pending
+        ? 'Your business registration has been submitted. Visit Baa is reviewing it. Listings will unlock after administrator verification.'
+        : 'Update the requested business details below, then resubmit the business for administrator review.'
+  });
+
+  const meta = createElement('div', { className: 'business-lifecycle-meta' });
+  if (registration) meta.append(createElement('span', { text: `Registration: ${registration}` }));
+  if (email) meta.append(createElement('span', { text: email }));
+  if (phone) meta.append(createElement('span', { text: phone }));
+
+  const actions = createElement('div', { className: 'business-lifecycle-actions' });
+  const edit = createElement('button', {
+    className: 'button secondary',
+    text: correction ? 'Edit required details' : pending ? 'Edit submitted details' : 'Edit Business Profile',
+    attrs: { type: 'button' }
+  });
+  edit.addEventListener('click', () => {
+    const form = document.getElementById('businessForm');
+    if (form) form.dataset.profileEditOpen = '1';
+    syncBusinessLifecycleUI();
+    form?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  actions.append(edit);
+
+  if (verified) {
+    const addListing = createElement('button', {
+      className: 'button aqua',
+      text: '+ Add Listing',
+      attrs: { type: 'button' }
+    });
+    addListing.addEventListener('click', openListingFromBusinessCard);
+    actions.prepend(addListing);
+
+    const publicLink = document.querySelector('.business-management-card.selected a[href^="business.html"]');
+    if (publicLink?.href) {
+      actions.append(createElement('a', {
+        className: 'button secondary',
+        text: 'View Public Page',
+        attrs: { href: publicLink.getAttribute('href') }
+      }));
+    }
+  }
+
+  card.replaceChildren(head, copy, meta, actions);
+}
+
+function syncBusinessLifecycleUI() {
+  const form = document.getElementById('businessForm');
+  if (!form) return;
+  ensureBusinessLifecycleStyles();
+
+  const status = businessStatusKey();
+  const identity = selectedBusinessIdentity();
+  if (form.dataset.lifecycleBusinessId !== identity) {
+    form.dataset.lifecycleBusinessId = identity;
+    form.dataset.profileEditOpen = '0';
+  }
+
+  const note = document.getElementById('simpleBusinessFlowNote');
+  const panelTitle = document.getElementById('businessPanelTitle');
+  const panelDescription = document.getElementById('businessPanelDescription');
+  const card = lifecycleCard();
+
+  if (!status || status === 'registration_required') {
+    if (card) card.hidden = true;
+    if (note) note.hidden = false;
+    if (panelTitle) panelTitle.textContent = 'Complete business registration';
+    if (panelDescription) panelDescription.textContent = 'Submit your business details for administrator review.';
+    showRegistrationWizard();
+    return;
+  }
+
+  if (note) note.hidden = true;
+  renderLifecycleCard(status);
+
+  if (status === 'verified') {
+    if (panelTitle) panelTitle.textContent = 'Business Profile';
+    if (panelDescription) panelDescription.textContent = 'Your verified business details. Edit them only when something changes.';
+  } else if (status === 'pending_review') {
+    if (panelTitle) panelTitle.textContent = 'Business submitted';
+    if (panelDescription) panelDescription.textContent = 'Your registration is awaiting administrator verification.';
+  } else {
+    if (panelTitle) panelTitle.textContent = 'Business details need attention';
+    if (panelDescription) panelDescription.textContent = 'Make the requested corrections and resubmit for review.';
+  }
+
+  const correction = ['changes_requested', 'rejected'].includes(status);
+  const editOpen = form.dataset.profileEditOpen === '1' || correction;
+  setBusinessProfileEditor(editOpen, status);
+}
+
 function addManualAvailabilityShortcut() {
   const panel = document.querySelector('[data-tab-panel="availability"]');
   if (!panel || document.getElementById('manualAvailabilityShortcut')) return;
@@ -143,6 +397,7 @@ function boot() {
   simplifyBusinessWizard();
   addManualAvailabilityShortcut();
   renderUniversalListingChoices();
+  syncBusinessLifecycleUI();
 
   const host = document.getElementById('listingTypeCards');
   if (host && host.dataset.simpleObserver !== 'bound') {
@@ -150,8 +405,40 @@ function boot() {
     new MutationObserver(() => queueMicrotask(renderUniversalListingChoices)).observe(host, { childList: true });
   }
 
+  const status = document.getElementById('businessStatus');
+  if (status && status.dataset.lifecycleObserver !== 'bound') {
+    status.dataset.lifecycleObserver = 'bound';
+    new MutationObserver(() => queueMicrotask(syncBusinessLifecycleUI)).observe(status, { childList: true, subtree: true, characterData: true });
+  }
+
+  const switcher = document.getElementById('businessSwitcher');
+  switcher?.addEventListener('change', () => {
+    const form = document.getElementById('businessForm');
+    if (form) form.dataset.profileEditOpen = '0';
+    setTimeout(syncBusinessLifecycleUI, 0);
+  });
+
+  document.getElementById('businessForm')?.addEventListener('submit', () => {
+    const statusKey = businessStatusKey();
+    if (statusKey && statusKey !== 'registration_required') {
+      const form = document.getElementById('businessForm');
+      if (form) form.dataset.profileEditOpen = '0';
+      setTimeout(syncBusinessLifecycleUI, 50);
+    }
+  });
+
   document.getElementById('newListingButton')?.addEventListener('click', () => setTimeout(renderUniversalListingChoices, 0));
-  document.getElementById('registerAnotherBusiness')?.addEventListener('click', () => setTimeout(simplifyBusinessWizard, 0));
+  document.getElementById('registerAnotherBusiness')?.addEventListener('click', () => {
+    const form = document.getElementById('businessForm');
+    if (form) {
+      form.dataset.profileEditOpen = '0';
+      form.dataset.lifecycleBusinessId = '';
+    }
+    setTimeout(() => {
+      simplifyBusinessWizard();
+      syncBusinessLifecycleUI();
+    }, 0);
+  });
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
