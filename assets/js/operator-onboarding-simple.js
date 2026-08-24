@@ -65,16 +65,25 @@ function simplifyBusinessWizard() {
     if (fallback) fallback.checked = true;
   };
   ensureCompatibilityChoice();
-  if (serviceChoices) new MutationObserver(ensureCompatibilityChoice).observe(serviceChoices, { childList: true, subtree: true });
+  if (serviceChoices && serviceChoices.dataset.simpleObserver !== 'bound') {
+    serviceChoices.dataset.simpleObserver = 'bound';
+    new MutationObserver(ensureCompatibilityChoice).observe(serviceChoices, { childList: true, subtree: true });
+  }
 
   const next = document.getElementById('businessStepNext');
   const back = document.getElementById('businessStepBack');
-  next?.addEventListener('click', () => queueMicrotask(() => {
-    if (selectedStep() === '1') step2?.click();
-  }));
-  back?.addEventListener('click', () => queueMicrotask(() => {
-    if (selectedStep() === '1') step0?.click();
-  }));
+  if (next && next.dataset.simpleSkip !== 'bound') {
+    next.dataset.simpleSkip = 'bound';
+    next.addEventListener('click', () => queueMicrotask(() => {
+      if (selectedStep() === '1') step2?.click();
+    }));
+  }
+  if (back && back.dataset.simpleSkip !== 'bound') {
+    back.dataset.simpleSkip = 'bound';
+    back.addEventListener('click', () => queueMicrotask(() => {
+      if (selectedStep() === '1') step0?.click();
+    }));
+  }
 
   const review = document.getElementById('businessReviewSummary');
   const removeServiceReview = () => {
@@ -83,21 +92,26 @@ function simplifyBusinessWizard() {
     });
   };
   removeServiceReview();
-  if (review) new MutationObserver(removeServiceReview).observe(review, { childList: true, subtree: true });
+  if (review && review.dataset.simpleObserver !== 'bound') {
+    review.dataset.simpleObserver = 'bound';
+    new MutationObserver(removeServiceReview).observe(review, { childList: true, subtree: true });
+  }
+}
+
+function universalChoicesPresent(host) {
+  return host.children.length === LISTING_CHOICES.length && [...host.children].every((child) => child.dataset.simpleListingChoice === '1');
 }
 
 function renderUniversalListingChoices() {
   const host = document.getElementById('listingTypeCards');
   const chooser = document.getElementById('listingTypeChooser');
   const form = document.getElementById('listingForm');
-  if (!host || !chooser || !form || chooser.hidden) return;
-  if (host.dataset.simpleChoices === 'ready' && host.children.length === LISTING_CHOICES.length) return;
+  if (!host || !chooser || !form || chooser.hidden || universalChoicesPresent(host)) return;
 
-  host.dataset.simpleChoices = 'ready';
   host.replaceChildren(...LISTING_CHOICES.map((item) => {
     const button = createElement('button', {
       className: 'listing-type-card',
-      attrs: { type: 'button' },
+      attrs: { type: 'button', 'data-simple-listing-choice': '1' },
       children: [
         createElement('strong', { text: item.label }),
         createElement('span', { text: item.detail })
@@ -166,7 +180,8 @@ function bindListingCapabilitySync() {
     try {
       await ensureBusinessServiceForListing(document.getElementById('listingCategory').value);
       replay = true;
-      form.requestSubmit(form.querySelector('button[type="submit"]'));
+      const submitButton = form.querySelector('button[type="submit"]');
+      submitButton ? form.requestSubmit(submitButton) : form.requestSubmit();
     } catch (error) {
       setMessage(message, `The service could not be linked to this business: ${error.message}`, 'error');
     }
@@ -180,10 +195,10 @@ function boot() {
   renderUniversalListingChoices();
 
   const host = document.getElementById('listingTypeCards');
-  if (host) new MutationObserver(() => {
-    host.dataset.simpleChoices = '';
-    queueMicrotask(renderUniversalListingChoices);
-  }).observe(host, { childList: true });
+  if (host && host.dataset.simpleObserver !== 'bound') {
+    host.dataset.simpleObserver = 'bound';
+    new MutationObserver(() => queueMicrotask(renderUniversalListingChoices)).observe(host, { childList: true });
+  }
 
   document.getElementById('newListingButton')?.addEventListener('click', () => setTimeout(renderUniversalListingChoices, 0));
   document.getElementById('registerAnotherBusiness')?.addEventListener('click', () => setTimeout(simplifyBusinessWizard, 0));
