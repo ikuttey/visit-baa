@@ -1,4 +1,5 @@
-import { isSupabaseConfigured, requireSupabase } from './supabase-client.js';
+import { isSupabaseConfigured, requirePublicSupabase, requireSupabase } from './supabase-client.js';
+import { userRoles } from './auth.js';
 
 const container = document.getElementById('activities');
 const note = document.getElementById('activitiesNote');
@@ -23,7 +24,7 @@ function normalizeHomepageNavigation() {
     nav.innerHTML = [
       '<a href="index.html" aria-current="page">Home</a>',
       '<a href="listings.html">Explore listings</a>',
-      '<a href="traveler-dashboard.html">My Baa Trip</a>'
+      '<a href="login.html" data-account-link>Login</a>'
     ].join('');
   }
 
@@ -53,7 +54,61 @@ function normalizeHomepageNavigation() {
   }
 }
 
+function accountDestination(roles) {
+  if (roles.includes('admin')) return { href: 'admin-dashboard.html', label: 'Admin Dashboard' };
+  if (roles.includes('operator')) return { href: 'operator-dashboard.html', label: 'Operator Dashboard' };
+  if (roles.includes('traveler')) return { href: 'traveler-dashboard.html', label: 'My Baa Trip' };
+  return { href: 'login.html', label: 'Login' };
+}
+
+function updateAccountLinks(destination) {
+  const accountLink = document.querySelector('[data-account-link]');
+  if (accountLink) {
+    accountLink.href = destination.href;
+    accountLink.textContent = destination.label;
+  }
+
+  const footerOperatorLink = [...document.querySelectorAll('.footer-col a')]
+    .find((link) => link.textContent.trim() === 'Operator portal');
+  if (footerOperatorLink && destination.href !== 'login.html') {
+    footerOperatorLink.href = destination.href;
+    footerOperatorLink.textContent = destination.label;
+  }
+
+  if (destination.href === 'operator-dashboard.html') {
+    const businessCta = document.querySelector('.business-copy a.btn[href="register.html"]');
+    if (businessCta) {
+      businessCta.href = destination.href;
+      businessCta.textContent = 'Open operator dashboard →';
+    }
+    const mobileListLink = document.querySelector('.bottom-nav a[href="register.html"]');
+    if (mobileListLink) {
+      mobileListLink.href = destination.href;
+      mobileListLink.innerHTML = '▣<span>Dashboard</span>';
+    }
+  }
+}
+
+async function applyHomepageAccountNavigation() {
+  if (!isSupabaseConfigured) return;
+
+  try {
+    const client = requireSupabase();
+    const { data, error } = await client.auth.getUser();
+    if (error || !data.user) {
+      updateAccountLinks({ href: 'login.html', label: 'Login' });
+      return;
+    }
+
+    const roles = await userRoles(data.user.id);
+    updateAccountLinks(accountDestination(roles));
+  } catch (error) {
+    console.warn('Could not restore signed-in homepage navigation:', error);
+  }
+}
+
 normalizeHomepageNavigation();
+applyHomepageAccountNavigation();
 
 function localDate(offsetDays = 0) {
   const date = new Date();
@@ -120,7 +175,7 @@ async function init() {
     return;
   }
   try {
-    const client = requireSupabase();
+    const client = requirePublicSupabase();
     const { data: availability, error } = await client.from('public_availability').select('*').gte('available_date', localDate(0)).lte('available_date', localDate(7)).order('available_date').order('start_time');
     if (error) throw error;
     state.availability = availability || [];
