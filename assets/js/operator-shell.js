@@ -93,6 +93,7 @@ export async function initializeOperatorPage(active='overview'){
   if(business)rememberBusiness(business.id);
   installOperatorNavigation(active,business);
   queueMicrotask(()=>import('./operator-notifications.js?v=2').catch((error)=>console.error('Operator notification center failed:',error)));
+  if(active==='listings')queueMicrotask(()=>import('./operator-content-enhancements.js?v=1').catch((error)=>console.error('Listing enhancements failed:',error)));
   return {client:requireSupabase(),user,businesses,business};
 }
 
