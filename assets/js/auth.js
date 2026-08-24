@@ -86,9 +86,10 @@ export function passwordResetRedirect() {
 }
 
 // The operator dashboard keeps account/business verification separate from
-// service listing. Load small enhancements only on that page so other
+// service listing. Load focused enhancements only on that page so other
 // authentication flows remain unchanged.
 if (typeof document !== 'undefined' && document.getElementById('businessForm') && document.getElementById('listingForm')) {
   queueMicrotask(() => import('./operator-onboarding-simple.js?v=2').catch((error) => console.error('Operator onboarding enhancement failed:', error)));
-  queueMicrotask(() => import('./operator-notifications.js?v=1').catch((error) => console.error('Operator notification center failed:', error)));
+  queueMicrotask(() => import('./operator-notifications.js?v=2').catch((error) => console.error('Operator notification center failed:', error)));
+  queueMicrotask(() => import('./operator-overview-v2.js?v=1').catch((error) => console.error('Operator V2 overview failed:', error)));
 }
