@@ -36,9 +36,9 @@ export function installOperatorNavigation(active='overview'){
   }
 }
 
-export async function loadOwnedBusinesses(user){
+export async function loadOwnedBusinesses(){
   const client=requireSupabase();
-  const {data,error}=await client.from('businesses').select('id,business_name,island,status,is_active,category').eq('owner_id',user.id).order('business_name');
+  const {data,error}=await client.rpc('operator_accessible_businesses');
   if(error)throw error;
   return data||[];
 }
@@ -51,8 +51,11 @@ export function chooseBusiness(businesses){
 export function fillBusinessSwitcher(select,businesses,business){
   if(!select)return;
   select.replaceChildren();
-  if(!businesses.length){select.append(new Option('No registered businesses',''));select.disabled=true;return;}
-  businesses.forEach((item)=>select.append(new Option(`${item.business_name} — ${String(item.status||'').replaceAll('_',' ')}`,item.id)));
+  if(!businesses.length){select.append(new Option('No accessible businesses',''));select.disabled=true;return;}
+  businesses.forEach((item)=>{
+    const role=item.access_role&&item.access_role!=='owner'?` · ${String(item.access_role).replaceAll('_',' ')}`:'';
+    select.append(new Option(`${item.business_name} — ${String(item.status||'').replaceAll('_',' ')}${role}`,item.id));
+  });
   select.disabled=false;select.value=business?.id||businesses[0].id;
 }
 
@@ -64,7 +67,7 @@ export async function initializeOperatorPage(active='overview'){
     logoutButton.dataset.operatorShellBound='1';
     logoutButton.addEventListener('click',()=>logout().catch((error)=>console.error('Logout failed',error)));
   }
-  const businesses=await loadOwnedBusinesses(user);
+  const businesses=await loadOwnedBusinesses();
   const business=chooseBusiness(businesses);
   if(business)rememberBusiness(business.id);
   queueMicrotask(()=>import('./operator-notifications.js?v=2').catch((error)=>console.error('Operator notification center failed:',error)));
@@ -79,6 +82,15 @@ export function bindBusinessSwitcher(select,state,onChange){
     if(state.business)rememberBusiness(state.business.id);
     await onChange?.(state.business);
   });
+}
+
+export function businessCan(business,permission){
+  const role=business?.access_role||'owner';
+  if(['owner','admin','manager'].includes(role))return true;
+  if(role==='reservations')return ['reservations','messages','calendar','analytics'].includes(permission);
+  if(role==='content')return ['content','arrival'].includes(permission);
+  if(role==='finance')return ['finance','analytics'].includes(permission);
+  return false;
 }
 
 export function formatMoney(value,currency='USD'){
