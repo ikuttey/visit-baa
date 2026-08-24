@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Calendar & Schedule — Visit Baa</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/app.css"><link rel="stylesheet" href="assets/css/operator-v2.css">
+</head>
+<body class="operator-v2-body" data-operator-page="calendar">
+  <header class="app-header"><div class="app-header-inner"><a href="index.html" class="brand"><span class="brand-mark"></span>Visit Baa</a><nav class="app-nav" aria-label="Operator navigation"><a href="index.html">Visit website</a><button type="button" class="text-button" id="logoutButton">Log out</button></nav></div></header>
+  <main class="operator-v2-shell">
+    <section class="operator-v2-page-head">
+      <div><span class="eyebrow">Inventory · Rates · Capacity</span><h1>Calendar & Schedule</h1><p>Control what customers can book. Accommodation uses room inventory and rates; activities, excursions and transfers use dated sessions and capacity.</p></div>
+      <div class="operator-business-tools"><div class="field"><label for="businessSwitcher">Business</label><select id="businessSwitcher"></select></div></div>
+    </section>
+    <div id="pageMessage" class="message" hidden></div>
+    <section class="operator-metric-grid" aria-label="Calendar summary">
+      <article class="operator-metric"><strong id="openToday">—</strong><span>Available today</span><small>Rooms / spaces open</small></article>
+      <article class="operator-metric"><strong id="heldToday">—</strong><span>On hold</span><small>Accepted, awaiting confirmation</small></article>
+      <article class="operator-metric"><strong id="bookedToday">—</strong><span>Visit Baa booked</span><small>Confirmed inventory</small></article>
+      <article class="operator-metric"><strong id="externalToday">—</strong><span>External booked</span><small>Booking.com / Agoda / direct</small></article>
+      <article class="operator-metric"><strong id="blockedToday">—</strong><span>Closed today</span><small>Blocked or stop sell</small></article>
+      <article class="operator-metric"><strong id="calendarHorizon">365</strong><span>Days manageable</span><small>12-month planning window</small></article>
+    </section>
+
+    <section class="operator-work-card" id="calendarEditorCard">
+      <div class="operator-work-card-head"><div><h2>Bulk update</h2><p>Select a property room or rate plan and apply one change across a date range.</p></div><button class="button secondary" id="toggleEditor" type="button">Hide editor</button></div>
+      <div class="operator-work-card-body" id="calendarEditorBody">
+        <form id="calendarForm"><div class="form-grid three">
+          <div class="field"><label for="calendarMode">Inventory type</label><select id="calendarMode"><option value="accommodation">Accommodation room</option><option value="schedule">Activity / service schedule</option></select></div>
+          <div class="field"><label for="listingSelect">Listing</label><select id="listingSelect"></select></div>
+          <div class="field" id="roomField"><label for="roomSelect">Room type</label><select id="roomSelect"></select></div>
+          <div class="field" id="rateField"><label for="ratePlanSelect">Rate plan</label><select id="ratePlanSelect"><option value="">Room inventory / base rate</option></select></div>
+          <div class="field"><label for="rangeStart">From</label><input id="rangeStart" type="date" required></div>
+          <div class="field"><label for="rangeEnd">To</label><input id="rangeEnd" type="date" required></div>
+          <div class="field" data-room-control><label for="sellableQuantity">Rooms for sale</label><input id="sellableQuantity" type="number" min="0"><small>Actual remaining stock is calculated after holds and bookings.</small></div>
+          <div class="field"><label for="priceOverride">Price override</label><input id="priceOverride" type="number" min="0" step="0.01" placeholder="Keep normal price"></div>
+          <div class="field"><label for="minimumStay">Minimum stay</label><input id="minimumStay" type="number" min="1" placeholder="No minimum"></div>
+          <div class="field"><label for="maximumStay">Maximum stay</label><input id="maximumStay" type="number" min="1" placeholder="No maximum"></div>
+          <div class="field"><label for="minAdvanceHours">Minimum booking notice</label><input id="minAdvanceHours" type="number" min="0" placeholder="Hours"></div>
+          <div class="field"><label for="maxAdvanceDays">Maximum advance booking</label><input id="maxAdvanceDays" type="number" min="0" placeholder="Days"></div>
+          <div class="field full"><div class="checkbox-grid"><label class="checkbox"><input id="closedArrival" type="checkbox"><span>Closed to arrival</span></label><label class="checkbox"><input id="closedDeparture" type="checkbox"><span>Closed to departure</span></label><label class="checkbox"><input id="stopSell" type="checkbox"><span>Stop sell</span></label><label class="checkbox"><input id="blocked" type="checkbox"><span>Block inventory</span></label></div></div>
+        </div><div class="form-actions"><button class="button aqua" id="saveCalendarRange" type="submit">Apply calendar update</button><a class="button secondary" href="operator-availability.html">External bookings</a></div></form>
+
+        <form id="scheduleRuleForm" hidden style="margin-top:20px"><h3>Recurring service schedule</h3><p class="help">Use this for excursions, diving, transfers and other scheduled services.</p><div class="form-grid three"><div class="field"><label for="scheduleDay">Day</label><select id="scheduleDay"><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option></select></div><div class="field"><label for="scheduleStart">Start time</label><input id="scheduleStart" type="time" required></div><div class="field"><label for="scheduleEnd">End time</label><input id="scheduleEnd" type="time"></div><div class="field"><label for="scheduleCapacity">Capacity</label><input id="scheduleCapacity" type="number" min="1" required></div><div class="field"><label for="scheduleFrom">Valid from</label><input id="scheduleFrom" type="date" required></div><div class="field"><label for="scheduleUntil">Valid until</label><input id="scheduleUntil" type="date"></div></div><div class="form-actions"><button class="button aqua" type="submit">Add recurring schedule</button><button class="button secondary" id="generateSchedule" type="button">Generate next 12 months</button></div></form>
+      </div>
+    </section>
+
+    <section class="operator-work-card">
+      <div class="operator-work-card-head"><div><h2 id="calendarTitle">Upcoming availability</h2><p id="calendarSubtitle">The next 31 days are shown. Use month controls to move through the 12-month calendar.</p></div><div class="form-actions"><button class="button small secondary" id="previousMonth" type="button">← Previous</button><button class="button small secondary" id="todayMonth" type="button">Today</button><button class="button small secondary" id="nextMonth" type="button">Next →</button></div></div>
+      <div class="operator-work-card-body"><div class="calendar-scroll" id="calendarTable"></div></div>
+    </section>
+
+    <section class="operator-work-card" id="scheduleRulesCard" hidden><div class="operator-work-card-head"><div><h2>Recurring schedules</h2><p>Edit the weekly rules used to create bookable departure sessions.</p></div></div><div class="operator-work-card-body" id="scheduleRules"></div></section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script type="module" src="assets/js/operator-calendar-v2.js"></script>
+</body></html>
