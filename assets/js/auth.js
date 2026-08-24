@@ -84,3 +84,10 @@ export function confirmationRedirect() {
 export function passwordResetRedirect() {
   return siteUrl('reset-password.html');
 }
+
+// The operator dashboard keeps account/business verification separate from
+// service listing. Load the small compatibility layer only on that page so
+// other authentication flows remain unchanged.
+if (typeof document !== 'undefined' && document.getElementById('businessForm') && document.getElementById('listingForm')) {
+  queueMicrotask(() => import('./operator-onboarding-simple.js').catch((error) => console.error('Operator onboarding enhancement failed:', error)));
+}
