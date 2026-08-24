@@ -36,7 +36,7 @@ function normalizeHomepageNavigation() {
     if (!document.getElementById('homepageNavRuntimeStyles')) {
       const style = document.createElement('style');
       style.id = 'homepageNavRuntimeStyles';
-      style.textContent = '@media(max-width:850px){.navlinks.is-open{display:flex;position:absolute;top:72px;left:13px;right:13px;flex-direction:column;gap:4px;margin:0;padding:12px;border:1px solid rgba(255,255,255,.18);border-radius:16px;background:rgba(3,30,36,.97);box-shadow:0 18px 45px rgba(0,0,0,.25)}.navlinks.is-open a{padding:11px 12px;border-radius:10px}.navlinks.is-open a:hover,.navlinks.is-open a:focus-visible{background:rgba(255,255,255,.1)}}';
+      style.textContent = '@media(max-width:850px){.navlinks.is-open{display:flex;position:absolute;top:calc(100% + 8px);left:13px;right:13px;flex-direction:column;gap:4px;margin:0;padding:12px;border:1px solid rgba(255,255,255,.18);border-radius:16px;background:rgba(3,30,36,.97);box-shadow:0 18px 45px rgba(0,0,0,.25)}.navlinks.is-open a{padding:11px 12px;border-radius:10px}.navlinks.is-open a:hover,.navlinks.is-open a:focus-visible{background:rgba(255,255,255,.1)}}';
       document.head.append(style);
     }
 
