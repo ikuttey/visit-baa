@@ -39,7 +39,7 @@ export async function requireAdmin() {
   }
   const roles = await userRoles(user.id);
   if (!roles.includes('admin')) {
-    window.location.replace('operator-dashboard.html');
+    window.location.replace('operator-overview.html');
     throw new Error('Administrator access required');
   }
   return user;
@@ -54,7 +54,7 @@ export async function requireTraveler() {
   }
   const roles = await userRoles(user.id);
   if (!roles.includes('traveler')) {
-    window.location.replace(roles.includes('admin') ? 'admin-dashboard.html' : 'operator-dashboard.html');
+    window.location.replace(roles.includes('admin') ? 'admin-dashboard.html' : 'operator-overview.html');
     throw new Error('Traveler access required');
   }
   return user;
@@ -65,7 +65,7 @@ export async function redirectAfterLogin(user) {
   const requested = new URLSearchParams(window.location.search).get('next') || localStorage.getItem('baa_after_auth_path');
   const next = /^traveler-dashboard\.html(?:\?[-A-Za-z0-9_=&%]*)?$/.test(requested || '') ? requested : 'traveler-dashboard.html';
   if (roles.includes('admin')) window.location.replace('admin-dashboard.html');
-  else if (roles.includes('operator')) window.location.replace('operator-dashboard.html');
+  else if (roles.includes('operator')) window.location.replace('operator-overview.html');
   else if (roles.includes('traveler')) { localStorage.removeItem('baa_after_auth_path'); window.location.replace(next); }
   else throw new Error('This account does not have an assigned Visit Baa role.');
 }
@@ -85,9 +85,8 @@ export function passwordResetRedirect() {
   return siteUrl('reset-password.html');
 }
 
-// The operator dashboard keeps account/business verification separate from
-// service listing. Load focused enhancements only on that page so other
-// authentication flows remain unchanged.
+// The legacy owner dashboard keeps account/business verification separate from
+// service listing. Load focused enhancements only on that page.
 if (typeof document !== 'undefined' && document.getElementById('businessForm') && document.getElementById('listingForm')) {
   queueMicrotask(() => import('./operator-onboarding-simple.js?v=2').catch((error) => console.error('Operator onboarding enhancement failed:', error)));
   queueMicrotask(() => import('./operator-notifications.js?v=2').catch((error) => console.error('Operator notification center failed:', error)));
