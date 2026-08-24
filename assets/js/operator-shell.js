@@ -2,7 +2,7 @@ import { requireSupabase } from './supabase-client.js';
 import { logout, requireOperator } from './auth.js';
 
 export const OPERATOR_NAV = [
-  ['overview','operator-dashboard.html','Overview'],
+  ['overview','operator-overview.html','Overview'],
   ['calendar','operator-calendar.html','Calendar / Schedule'],
   ['reservations','operator-reservations.html','Reservations'],
   ['listings','operator-dashboard.html?tab=listings','Listings'],
@@ -18,22 +18,44 @@ function el(tag,options={}){const node=document.createElement(tag);if(options.cl
 export function selectedBusinessId(){return localStorage.getItem('baa_operator_business_id')||'';}
 export function rememberBusiness(id){if(id)localStorage.setItem('baa_operator_business_id',id);}
 
-export function installOperatorNavigation(active='overview'){
+export function businessCan(business,permission){
+  const role=business?.access_role||'owner';
+  if(['owner','admin','manager'].includes(role))return true;
+  if(role==='reservations')return ['reservations','messages','calendar','analytics'].includes(permission);
+  if(role==='content')return ['content','arrival'].includes(permission);
+  if(role==='finance')return ['finance','analytics'].includes(permission);
+  return false;
+}
+
+function navAllowed(key,business){
+  const role=business?.access_role||'owner';
+  if(['owner','admin'].includes(role))return true;
+  if(key==='overview'||key==='settings')return true;
+  if(key==='calendar')return businessCan(business,'calendar');
+  if(key==='reservations')return businessCan(business,'reservations')||businessCan(business,'finance');
+  if(key==='rates')return businessCan(business,'content');
+  if(key==='analytics')return businessCan(business,'analytics');
+  // The legacy Listings / Property / Reviews screen still contains owner-only
+  // assumptions. Keep those links owner-only until that editor is safely migrated.
+  return false;
+}
+
+export function installOperatorNavigation(active='overview',business=null){
+  const allowed=OPERATOR_NAV.filter(([key])=>navAllowed(key,business));
   const nav=document.querySelector('.app-nav');
   if(nav){
     [...nav.querySelectorAll('[data-operator-v2-link]')].forEach((item)=>item.remove());
     const logoutButton=document.getElementById('logoutButton');
     const group=el('div',{className:'operator-v2-nav',attrs:{'data-operator-v2-link':'1','aria-label':'Operator workspace'}});
-    OPERATOR_NAV.forEach(([key,href,label])=>group.append(el('a',{text:label,attrs:{href,'aria-current':key===active?'page':'false'}})));
+    allowed.forEach(([key,href,label])=>group.append(el('a',{text:label,attrs:{href,'aria-current':key===active?'page':'false'}})));
     if(logoutButton)nav.insertBefore(group,logoutButton);else nav.append(group);
   }
 
-  let mobile=document.querySelector('.operator-mobile-actions');
-  if(!mobile){
-    mobile=el('nav',{className:'operator-mobile-actions',attrs:{'aria-label':'Operator mobile navigation'}});
-    [['overview','operator-dashboard.html','Home'],['calendar','operator-calendar.html','Calendar'],['reservations','operator-reservations.html','Bookings'],['analytics','operator-analytics.html','Stats'],['settings','operator-settings.html','Settings']].forEach(([key,href,label])=>mobile.append(el('a',{text:label,attrs:{href,'aria-current':key===active?'page':'false'}})));
-    document.body.append(mobile);
-  }
+  document.querySelector('.operator-mobile-actions')?.remove();
+  const mobile=el('nav',{className:'operator-mobile-actions',attrs:{'aria-label':'Operator mobile navigation'}});
+  const mobileKeys=new Set(['overview','calendar','reservations','analytics','settings']);
+  allowed.filter(([key])=>mobileKeys.has(key)).forEach(([key,href,label])=>mobile.append(el('a',{text:key==='overview'?'Home':key==='reservations'?'Bookings':key==='analytics'?'Stats':label,attrs:{href,'aria-current':key===active?'page':'false'}})));
+  if(mobile.childElementCount)document.body.append(mobile);
 }
 
 export async function loadOwnedBusinesses(){
@@ -61,7 +83,6 @@ export function fillBusinessSwitcher(select,businesses,business){
 
 export async function initializeOperatorPage(active='overview'){
   const user=await requireOperator();
-  installOperatorNavigation(active);
   const logoutButton=document.getElementById('logoutButton');
   if(logoutButton&&!logoutButton.dataset.operatorShellBound){
     logoutButton.dataset.operatorShellBound='1';
@@ -70,6 +91,7 @@ export async function initializeOperatorPage(active='overview'){
   const businesses=await loadOwnedBusinesses();
   const business=chooseBusiness(businesses);
   if(business)rememberBusiness(business.id);
+  installOperatorNavigation(active,business);
   queueMicrotask(()=>import('./operator-notifications.js?v=2').catch((error)=>console.error('Operator notification center failed:',error)));
   return {client:requireSupabase(),user,businesses,business};
 }
@@ -80,17 +102,9 @@ export function bindBusinessSwitcher(select,state,onChange){
   select.addEventListener('change',async()=>{
     state.business=state.businesses.find((item)=>item.id===select.value)||null;
     if(state.business)rememberBusiness(state.business.id);
+    installOperatorNavigation(document.body.dataset.operatorPage||'overview',state.business);
     await onChange?.(state.business);
   });
-}
-
-export function businessCan(business,permission){
-  const role=business?.access_role||'owner';
-  if(['owner','admin','manager'].includes(role))return true;
-  if(role==='reservations')return ['reservations','messages','calendar','analytics'].includes(permission);
-  if(role==='content')return ['content','arrival'].includes(permission);
-  if(role==='finance')return ['finance','analytics'].includes(permission);
-  return false;
 }
 
 export function formatMoney(value,currency='USD'){
