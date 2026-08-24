@@ -19,7 +19,8 @@ export function selectedBusinessId(){return localStorage.getItem('baa_operator_b
 export function rememberBusiness(id){if(id)localStorage.setItem('baa_operator_business_id',id);}
 
 export function businessCan(business,permission){
-  const role=business?.access_role||'owner';
+  if(!business)return false;
+  const role=business.access_role||'owner';
   if(['owner','admin','manager'].includes(role))return true;
   if(role==='reservations')return ['reservations','messages','calendar','analytics'].includes(permission);
   if(role==='content')return ['content','arrival'].includes(permission);
@@ -28,7 +29,8 @@ export function businessCan(business,permission){
 }
 
 function navAllowed(key,business){
-  const role=business?.access_role||'owner';
+  if(!business)return ['overview','property','settings'].includes(key);
+  const role=business.access_role||'owner';
   if(['owner','admin'].includes(role))return true;
   if(key==='overview'||key==='settings')return true;
   if(key==='calendar')return businessCan(business,'calendar');
@@ -90,10 +92,17 @@ export async function initializeOperatorPage(active='overview'){
   }
   const businesses=await loadOwnedBusinesses();
   const business=chooseBusiness(businesses);
-  if(business)rememberBusiness(business.id);
+  if(business)rememberBusiness(business.id);else localStorage.removeItem('baa_operator_business_id');
   installOperatorNavigation(active,business);
+
+  if(active==='listings'&&!business){
+    const newListing=document.getElementById('newListing');if(newListing)newListing.disabled=true;
+    const editor=document.getElementById('listingEditor');if(editor)editor.hidden=true;
+    const table=document.getElementById('listingTable');if(table)table.innerHTML='<div class="empty-state"><strong>Register a business first</strong><span>Your business must exist before you can create listings. Open Property to register your business and submit it for administrator approval.</span><a class="button aqua" href="operator-dashboard.html?tab=business">Register business</a></div>';
+  }
+
   queueMicrotask(()=>import('./operator-notifications.js?v=2').catch((error)=>console.error('Operator notification center failed:',error)));
-  if(active==='listings')queueMicrotask(()=>import('./operator-content-enhancements.js?v=2').catch((error)=>console.error('Listing enhancements failed:',error)));
+  if(active==='listings'&&business)queueMicrotask(()=>import('./operator-content-enhancements.js?v=2').catch((error)=>console.error('Listing enhancements failed:',error)));
   return {client:requireSupabase(),user,businesses,business};
 }
 
@@ -102,7 +111,7 @@ export function bindBusinessSwitcher(select,state,onChange){
   fillBusinessSwitcher(select,state.businesses,state.business);
   select.addEventListener('change',async()=>{
     state.business=state.businesses.find((item)=>item.id===select.value)||null;
-    if(state.business)rememberBusiness(state.business.id);
+    if(state.business)rememberBusiness(state.business.id);else localStorage.removeItem('baa_operator_business_id');
     installOperatorNavigation(document.body.dataset.operatorPage||'overview',state.business);
     await onChange?.(state.business);
   });
