@@ -7,6 +7,54 @@ const state = { availability: [], listings: new Map(), range: 'today' };
 const travelDate = document.getElementById('travelDate');
 if (travelDate) travelDate.min = localDate(0);
 
+function normalizeHomepageNavigation() {
+  const header = document.querySelector('header.nav');
+  if (!header) return;
+
+  const brand = header.querySelector('.brand');
+  if (brand) {
+    brand.href = 'index.html';
+    brand.innerHTML = '<span class="brand-mark"></span> Visit Baa';
+  }
+
+  const nav = header.querySelector('.navlinks');
+  if (nav) {
+    nav.setAttribute('aria-label', 'Main navigation');
+    nav.innerHTML = [
+      '<a href="index.html" aria-current="page">Home</a>',
+      '<a href="listings.html">Explore listings</a>',
+      '<a href="traveler-dashboard.html">My Baa Trip</a>'
+    ].join('');
+  }
+
+  const hamburger = header.querySelector('.hamb');
+  if (hamburger && nav) {
+    hamburger.setAttribute('aria-expanded', 'false');
+    hamburger.setAttribute('aria-controls', 'homepagePrimaryNav');
+    nav.id = 'homepagePrimaryNav';
+
+    if (!document.getElementById('homepageNavRuntimeStyles')) {
+      const style = document.createElement('style');
+      style.id = 'homepageNavRuntimeStyles';
+      style.textContent = '@media(max-width:850px){.navlinks.is-open{display:flex;position:absolute;top:calc(100% + 8px);left:13px;right:13px;flex-direction:column;gap:4px;margin:0;padding:12px;border:1px solid rgba(255,255,255,.18);border-radius:16px;background:rgba(3,30,36,.97);box-shadow:0 18px 45px rgba(0,0,0,.25)}.navlinks.is-open a{padding:11px 12px;border-radius:10px}.navlinks.is-open a:hover,.navlinks.is-open a:focus-visible{background:rgba(255,255,255,.1)}}';
+      document.head.append(style);
+    }
+
+    hamburger.addEventListener('click', () => {
+      const open = nav.classList.toggle('is-open');
+      hamburger.setAttribute('aria-expanded', String(open));
+    });
+
+    nav.addEventListener('click', (event) => {
+      if (!event.target.closest('a')) return;
+      nav.classList.remove('is-open');
+      hamburger.setAttribute('aria-expanded', 'false');
+    });
+  }
+}
+
+normalizeHomepageNavigation();
+
 function localDate(offsetDays = 0) {
   const date = new Date();
   date.setHours(12, 0, 0, 0);

@@ -6,3 +6,15 @@ window.BAA_CONFIG = Object.freeze({
   siteUrl: 'https://ikuttey.github.io/visit-baa/'
 });
 
+function repairLegacyHomeLinks() {
+  document.querySelectorAll('a[href="index (1).html"], a[href="index%20(1).html"]').forEach((link) => {
+    link.setAttribute('href', 'index.html');
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', repairLegacyHomeLinks, { once: true });
+} else {
+  repairLegacyHomeLinks();
+}
+
