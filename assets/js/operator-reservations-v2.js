@@ -25,14 +25,17 @@ function safeSearch(value){return String(value||'').replace(/[,()%]/g,' ').trim(
 function canReservations(){return businessCan(state.business,'reservations');}
 function canMessages(){return businessCan(state.business,'messages');}
 function canFinance(){return businessCan(state.business,'finance')||canReservations();}
+function needsQuote(item=state.selected){return Boolean(item&&item.quote_status==='availability_confirmation_required'&&['new','changes_requested'].includes(item.status));}
 
 function applyPermissionUi(){
   const messageCard=document.getElementById('messageForm')?.closest('.operator-work-card');
   const noteCard=document.getElementById('internalNoteForm')?.closest('.operator-work-card');
   const historyCard=document.getElementById('bookingTimeline')?.closest('.operator-work-card');
+  const quoteCard=document.getElementById('quoteCard');
   if(messageCard)messageCard.hidden=!canMessages();
   if(noteCard)noteCard.hidden=!canReservations();
   if(historyCard)historyCard.hidden=!canMessages();
+  if(quoteCard)quoteCard.hidden=!(canReservations()&&needsQuote());
 }
 
 function applyFilters(query){
@@ -93,7 +96,8 @@ function renderList(){
     const row=document.createElement('article');row.className='reservation-row';row.tabIndex=0;
     const stay=item.check_out_date?`${dateText(item.requested_date)} → ${dateText(item.check_out_date)}`:`${dateText(item.requested_date)} · ${timeText(item.requested_time)}`;
     const hold=holdText(item);
-    row.innerHTML=`<div><strong>${esc(item.guest_full_name)}</strong><small>${esc(item.booking_reference||item.id.slice(0,8))} · ${esc(item.guest_email)}</small></div><div><strong>${esc(item.listings?.title||'Listing')}</strong><small>${stay} · ${item.guest_count} guest${Number(item.guest_count)===1?'':'s'}${item.rooms_requested>1?` · ${item.rooms_requested} rooms`:''}</small></div><div><span class="reservation-price">${formatMoney(item.quoted_total,item.quote_currency||'USD')}</span><small>${esc(paymentLabel(item))}${hold?` · ${esc(hold)}`:''}</small></div><div class="reservation-status-stack"><span class="${statusClass(item.status)}">${esc(item.status.replaceAll('_',' '))}</span><span class="${paymentClass(item.payment_status||'unpaid')}">${esc(paymentLabel(item))}</span></div>`;
+    const quote=needsQuote(item)?' · price confirmation required':'';
+    row.innerHTML=`<div><strong>${esc(item.guest_full_name)}</strong><small>${esc(item.booking_reference||item.id.slice(0,8))} · ${esc(item.guest_email)}</small></div><div><strong>${esc(item.listings?.title||'Listing')}</strong><small>${stay} · ${item.guest_count} guest${Number(item.guest_count)===1?'':'s'}${item.rooms_requested>1?` · ${item.rooms_requested} rooms`:''}${quote}</small></div><div><span class="reservation-price">${formatMoney(item.quoted_total,item.quote_currency||'USD')}</span><small>${esc(paymentLabel(item))}${hold?` · ${esc(hold)}`:''}</small></div><div class="reservation-status-stack"><span class="${statusClass(item.status)}">${esc(item.status.replaceAll('_',' '))}</span><span class="${paymentClass(item.payment_status||'unpaid')}">${esc(paymentLabel(item))}</span></div>`;
     row.addEventListener('click',()=>openReservation(item));row.addEventListener('keydown',(e)=>{if(e.key==='Enter')openReservation(item);});box.append(row);
   });
 }
@@ -107,23 +111,56 @@ async function loadReservationById(id){
 async function openReservation(item){
   state.selected=item;drawer.hidden=false;document.body.style.overflow='hidden';history.replaceState(null,'',`${location.pathname}?id=${encodeURIComponent(item.id)}`);
   document.getElementById('drawerReference').textContent=item.booking_reference||'Reservation';document.getElementById('drawerSubtitle').textContent=`${item.guest_full_name} · ${item.listings?.title||'Listing'}`;
-  document.getElementById('internalNote').value=item.internal_note||'';applyPermissionUi();renderSummary();renderActions();
+  document.getElementById('internalNote').value=item.internal_note||'';renderSummary();renderQuotePanel();renderActions();applyPermissionUi();
   const tasks=[loadPayments()];if(canMessages())tasks.push(loadMessages(),loadHistory());await Promise.all(tasks);
 }
-function closeDrawer(){drawer.hidden=true;document.body.style.overflow='';state.selected=null;history.replaceState(null,'',location.pathname);}
+function closeDrawer(){drawer.hidden=true;document.body.style.overflow='';state.selected=null;document.getElementById('quoteCard').hidden=true;history.replaceState(null,'',location.pathname);}
 function detail(label,value,full=false){return `<div class="detail-block${full?' full':''}"><label>${esc(label)}</label><div>${value||'—'}</div></div>`;}
 function renderSummary(){
   const i=state.selected;if(!i)return;
   const stay=i.check_out_date?`${dateText(i.requested_date)} → ${dateText(i.check_out_date)}`:`${dateText(i.requested_date)} · ${timeText(i.requested_time)}`;const hold=holdText(i);
-  document.getElementById('reservationSummary').innerHTML=detail('Guest',`${esc(i.guest_full_name)}<br>${esc(i.guest_email)}<br>${esc(i.guest_phone)}`)+detail('Reservation',`${esc(i.listings?.title||'Listing')}<br>${stay}`)+detail('Guests',`${i.adult_count||i.guest_count} adult(s) · ${i.child_count||0} child(ren)${i.rooms_requested?` · ${i.rooms_requested} room(s)`:''}`)+detail('Price',`${formatMoney(i.quoted_total,i.quote_currency||'USD')}<br><small>Subtotal ${formatMoney(i.quoted_subtotal,i.quote_currency||'USD')} · discount ${formatMoney(i.discount_amount,i.quote_currency||'USD')}</small>`)+detail('Status',`<span class="${statusClass(i.status)}">${esc(i.status.replaceAll('_',' '))}</span>${hold?`<br><small>${esc(hold)}</small>`:''}`)+detail('Payment',`<span class="${paymentClass(i.payment_status||'unpaid')}">${esc(paymentLabel(i))}</span>${i.balance_due!=null?`<br><small>Balance ${formatMoney(i.balance_due,i.quote_currency||'USD')}</small>`:''}`)+detail('Pickup / drop-off',`${esc(i.pickup_point_snapshot||'Not selected')} → ${esc(i.dropoff_point_snapshot||'Not selected')}`,true)+detail('Guest message',esc(i.guest_message||'No initial message'),true);
+  const quoteStatus=needsQuote(i)?'<br><small>Operator price confirmation required</small>':'';
+  document.getElementById('reservationSummary').innerHTML=detail('Guest',`${esc(i.guest_full_name)}<br>${esc(i.guest_email)}<br>${esc(i.guest_phone)}`)+detail('Reservation',`${esc(i.listings?.title||'Listing')}<br>${stay}`)+detail('Guests',`${i.adult_count||i.guest_count} adult(s) · ${i.child_count||0} child(ren)${i.rooms_requested?` · ${i.rooms_requested} room(s)`:''}`)+detail('Price',`${formatMoney(i.quoted_total,i.quote_currency||'USD')}<br><small>Subtotal ${formatMoney(i.quoted_subtotal,i.quote_currency||'USD')} · discount ${formatMoney(i.discount_amount,i.quote_currency||'USD')}</small>${quoteStatus}`)+detail('Status',`<span class="${statusClass(i.status)}">${esc(i.status.replaceAll('_',' '))}</span>${hold?`<br><small>${esc(hold)}</small>`:''}`)+detail('Payment',`<span class="${paymentClass(i.payment_status||'unpaid')}">${esc(paymentLabel(i))}</span>${i.balance_due!=null?`<br><small>Balance ${formatMoney(i.balance_due,i.quote_currency||'USD')}</small>`:''}`)+detail('Pickup / drop-off',`${esc(i.pickup_point_snapshot||'Not selected')} → ${esc(i.dropoff_point_snapshot||'Not selected')}`,true)+detail('Guest message',esc(i.guest_message||'No initial message'),true);
+}
+
+function renderQuotePanel(){
+  const card=document.getElementById('quoteCard');if(!card||!state.selected)return;
+  const visible=canReservations()&&needsQuote();card.hidden=!visible;if(!visible)return;
+  document.getElementById('quoteCurrencyLabel').textContent=state.selected.quote_currency||'USD';
+  document.getElementById('quoteSubtotal').value=state.selected.quoted_subtotal??'';
+  document.getElementById('quoteTaxes').value=state.selected.taxes_amount??0;
+  document.getElementById('quoteFees').value=state.selected.fees_amount??0;
+  document.getElementById('quoteResponse').value='';
+}
+function openQuotePanel(){renderQuotePanel();document.getElementById('quoteCard')?.scrollIntoView({behavior:'smooth',block:'nearest'});}
+
+async function saveQuote(event){
+  event.preventDefault();if(!canReservations()||!needsQuote())return;
+  const subtotal=Number(document.getElementById('quoteSubtotal').value),taxes=Number(document.getElementById('quoteTaxes').value||0),fees=Number(document.getElementById('quoteFees').value||0);
+  if(!Number.isFinite(subtotal)||subtotal<0||!Number.isFinite(taxes)||taxes<0||!Number.isFinite(fees)||fees<0)return setPageMessage(drawerMessage,'Quote amounts must be zero or greater.','error');
+  const button=document.getElementById('saveQuote');button.disabled=true;button.textContent='Confirming…';
+  try{
+    const {data,error}=await state.client.rpc('operator_quote_booking',{p_enquiry_id:state.selected.id,p_subtotal:subtotal,p_taxes:taxes,p_fees:fees,p_response:document.getElementById('quoteResponse').value.trim()||null});if(error)throw error;
+    state.selected={...state.selected,...data};const index=state.items.findIndex((x)=>x.id===state.selected.id);if(index>=0)state.items[index]=state.selected;renderSummary();renderQuotePanel();renderActions();renderList();await loadMetrics();if(canMessages())await loadHistory();setPageMessage(drawerMessage,'Price confirmed. You can now accept and hold the booking.','success');
+  }catch(error){setPageMessage(drawerMessage,error.message,'error');}
+  finally{button.disabled=false;button.textContent='Confirm price';}
 }
 
 function actionButton(label,action,kind='secondary'){const b=document.createElement('button');b.type='button';b.className=`button ${kind}`;b.textContent=label;b.addEventListener('click',action);return b;}
 function renderActions(){
   const box=document.getElementById('reservationActions');box.replaceChildren();const i=state.selected;if(!i)return;
   if(canReservations()){
-    if(i.status==='new')box.append(actionButton('Accept & hold inventory',()=>changeStatus('accepted'),'aqua'),actionButton('Request changes',()=>changeStatus('changes_requested')),actionButton('Decline',()=>changeStatus('declined'),'danger'));
-    if(['accepted','changes_requested'].includes(i.status))box.append(actionButton('Confirm booking',()=>changeStatus('confirmed'),'aqua'),actionButton('Cancel',()=>changeStatus('cancelled'),'danger'));
+    if(i.status==='new'){
+      if(needsQuote(i))box.append(actionButton('Confirm price',openQuotePanel,'aqua'));
+      else box.append(actionButton('Accept & hold inventory',()=>changeStatus('accepted'),'aqua'));
+      box.append(actionButton('Request changes',()=>changeStatus('changes_requested')),actionButton('Decline',()=>changeStatus('declined'),'danger'));
+    }
+    if(i.status==='changes_requested'){
+      if(needsQuote(i))box.append(actionButton('Confirm price',openQuotePanel,'aqua'));
+      else box.append(actionButton('Confirm booking',()=>changeStatus('confirmed'),'aqua'));
+      box.append(actionButton('Cancel',()=>changeStatus('cancelled'),'danger'));
+    }
+    if(i.status==='accepted')box.append(actionButton('Confirm booking',()=>changeStatus('confirmed'),'aqua'),actionButton('Cancel',()=>changeStatus('cancelled'),'danger'));
     if(i.status==='confirmed')box.append(actionButton('Complete',()=>changeStatus('completed'),'aqua'),actionButton('No-show',()=>changeStatus('no_show')),actionButton('Cancel',()=>changeStatus('cancelled'),'danger'));
   }
   if(canFinance()&&['confirmed','completed','no_show'].includes(i.status))box.append(actionButton(i.operator_payment_confirmed_at?'Payment received ✓':'Record service payment',()=>recordServicePayment(),i.operator_payment_confirmed_at?'secondary':'aqua'));
@@ -131,8 +168,9 @@ function renderActions(){
 
 async function changeStatus(status){
   if(!canReservations())return;
+  if(status==='accepted'&&needsQuote())return openQuotePanel();
   const response=status==='changes_requested'?prompt('What should the guest change?',''):(['declined','cancelled'].includes(status)?prompt('Optional reason:',''):null);if(response===null&&status==='changes_requested')return;
-  try{setPageMessage(drawerMessage,'Updating reservation…','loading');const {data,error}=await state.client.rpc('operator_update_booking',{p_enquiry_id:state.selected.id,p_status:status,p_response:response||null});if(error)throw error;state.selected={...state.selected,...data};const idx=state.items.findIndex((x)=>x.id===state.selected.id);if(idx>=0)state.items[idx]=state.selected;renderSummary();renderActions();if(canMessages())await loadHistory();await loadMetrics();renderList();setPageMessage(drawerMessage,status==='accepted'?'Accepted. Inventory is held until confirmation or hold expiry.':'Reservation updated.','success');}catch(error){setPageMessage(drawerMessage,error.message,'error');}
+  try{setPageMessage(drawerMessage,'Updating reservation…','loading');const {data,error}=await state.client.rpc('operator_update_booking',{p_enquiry_id:state.selected.id,p_status:status,p_response:response||null});if(error)throw error;state.selected={...state.selected,...data};const idx=state.items.findIndex((x)=>x.id===state.selected.id);if(idx>=0)state.items[idx]=state.selected;renderSummary();renderQuotePanel();renderActions();applyPermissionUi();if(canMessages())await loadHistory();await loadMetrics();renderList();setPageMessage(drawerMessage,status==='accepted'?'Accepted. Inventory is held until confirmation or hold expiry.':'Reservation updated.','success');}catch(error){setPageMessage(drawerMessage,error.message,'error');}
 }
 
 async function recordServicePayment(){
@@ -161,7 +199,7 @@ function renderPayments(){
 }
 async function reviewPayment(payment,status){if(!canFinance())return;const note=prompt(status==='confirmed'?'Optional confirmation note:':'Reason for rejecting reference:',payment.operator_note||'');if(note===null)return;const {data,error}=await state.client.rpc('operator_review_payment_reference',{p_reference_id:payment.id,p_status:status,p_note:note||null});if(error)return setPageMessage(drawerMessage,error.message,'error');Object.assign(payment,data);await loadPayments();await reloadSelected();if(canMessages())await loadHistory();setPageMessage(drawerMessage,`Payment reference ${status}.`,'success');}
 async function viewPaymentProof(payment){const buckets=['payment-proofs','payment-proofs-private','payment-references'];for(const bucket of buckets){const {data}=await state.client.storage.from(bucket).createSignedUrl(payment.proof_path,300);if(data?.signedUrl){window.open(data.signedUrl,'_blank','noopener');return;}}setPageMessage(drawerMessage,'Payment proof could not be opened for this account.','error');}
-async function reloadSelected(){const {data,error}=await state.client.from('booking_enquiries').select('*,listings(title,category,listing_kind)').eq('id',state.selected.id).single();if(!error&&data){state.selected=data;renderSummary();renderActions();}}
+async function reloadSelected(){const {data,error}=await state.client.from('booking_enquiries').select('*,listings(title,category,listing_kind)').eq('id',state.selected.id).single();if(!error&&data){state.selected=data;renderSummary();renderQuotePanel();renderActions();applyPermissionUi();}}
 
 async function loadHistory(){
   if(!canMessages())return;
@@ -176,7 +214,7 @@ function bindFilters(){
   document.querySelectorAll('#quickFilters [data-quick]').forEach((button)=>button.addEventListener('click',()=>{state.quick=button.dataset.quick;document.querySelectorAll('#quickFilters [data-quick]').forEach((item)=>item.classList.toggle('active',item===button));resetPage();}));
   document.getElementById('refreshReservations').addEventListener('click',loadReservations);document.getElementById('previousPage').addEventListener('click',()=>{if(state.page>0){state.page-=1;loadReservations();}});document.getElementById('nextPage').addEventListener('click',()=>{if((state.page+1)*state.pageSize<state.total){state.page+=1;loadReservations();}});
 }
-function bindDrawer(){document.getElementById('closeDrawer').addEventListener('click',closeDrawer);document.getElementById('drawerScrim').addEventListener('click',closeDrawer);document.addEventListener('keydown',(e)=>{if(e.key==='Escape'&&!drawer.hidden)closeDrawer();});document.getElementById('messageForm').addEventListener('submit',sendMessage);document.getElementById('internalNoteForm').addEventListener('submit',saveInternalNote);}
+function bindDrawer(){document.getElementById('closeDrawer').addEventListener('click',closeDrawer);document.getElementById('drawerScrim').addEventListener('click',closeDrawer);document.addEventListener('keydown',(e)=>{if(e.key==='Escape'&&!drawer.hidden)closeDrawer();});document.getElementById('quoteForm').addEventListener('submit',saveQuote);document.getElementById('messageForm').addEventListener('submit',sendMessage);document.getElementById('internalNoteForm').addEventListener('submit',saveInternalNote);}
 
 async function loadBusiness(){state.page=0;applyPermissionUi();await loadReservations();}
 async function init(){
