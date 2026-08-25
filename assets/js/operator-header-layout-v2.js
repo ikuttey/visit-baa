@@ -1,18 +1,14 @@
 // Shared operator header/layout bootstrap. The actual operations navigation is
 // rendered by operator-shell.js. This module keeps right-side account controls
-// separated and loads the common partner-workspace stylesheet on every V2 page.
+// separated and loads the common partner-workspace styles on every V2 page.
 
-if (!document.querySelector('link[data-operator-partner-style]')) {
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = 'assets/css/operator-partner-extranet.css?v=1';
-  link.dataset.operatorPartnerStyle = '1';
-  document.head.append(link);
-}
+function ensureStyle(href,key){if(document.querySelector(`link[data-${key}]`))return;const link=document.createElement('link');link.rel='stylesheet';link.href=href;link.dataset[key]='1';document.head.append(link);}
+ensureStyle('assets/css/operator-partner-extranet.css?v=2','operatorPartnerStyle');
+ensureStyle('assets/css/operator-audit-fixes-v2.css?v=1','operatorAuditStyle');
 
-if (!document.getElementById('operatorHeaderLayoutV3Styles')) {
+if (!document.getElementById('operatorHeaderLayoutV4Styles')) {
   const style = document.createElement('style');
-  style.id = 'operatorHeaderLayoutV3Styles';
+  style.id = 'operatorHeaderLayoutV4Styles';
   style.textContent = `
     .app-header .app-header-inner{min-width:0}
     .app-header .app-nav{min-width:0;flex:1 1 auto;justify-content:flex-end}
