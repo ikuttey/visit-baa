@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Inbox — Visit Baa</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/app.css">
+  <link rel="stylesheet" href="assets/css/operator-v2.css">
+</head>
+<body class="operator-v2-body" data-operator-page="inbox">
+<header class="app-header">
+  <div class="app-header-inner">
+    <a href="index.html" class="brand"><span class="brand-mark"></span>Visit Baa</a>
+    <nav class="app-nav" aria-label="Operator account actions">
+      <a href="index.html">Visit website</a>
+      <button type="button" class="text-button" id="logoutButton">Log out</button>
+    </nav>
+  </div>
+</header>
+<main class="operator-v2-shell">
+  <section class="operator-v2-page-head">
+    <div>
+      <span class="eyebrow">Guest communication</span>
+      <h1>Inbox</h1>
+      <p>Read and reply to guest messages from reservations in one place.</p>
+    </div>
+    <div class="operator-business-tools">
+      <div class="field"><label for="businessSwitcher">Business</label><select id="businessSwitcher"></select></div>
+    </div>
+  </section>
+  <div id="pageMessage" class="message" hidden></div>
+
+  <section class="operator-toolbar">
+    <div class="field search-field"><label for="inboxSearch">Search</label><input id="inboxSearch" placeholder="Guest, booking reference or listing"></div>
+    <div class="field"><label for="inboxFilter">Show</label><select id="inboxFilter"><option value="all">All conversations</option><option value="upcoming">Upcoming guests</option><option value="active">New / accepted / confirmed</option><option value="past">Past stays / completed</option></select></div>
+    <button class="button secondary" id="refreshInbox" type="button">Refresh</button>
+  </section>
+
+  <section class="operator-inbox-layout" aria-label="Guest inbox">
+    <aside class="operator-inbox-list">
+      <div class="operator-inbox-list-head"><strong id="conversationCount">Conversations</strong><small class="help">Most recent activity first</small></div>
+      <div id="inboxThreads" class="operator-inbox-threads"></div>
+    </aside>
+    <article class="operator-inbox-conversation">
+      <header class="operator-inbox-conversation-head" id="conversationHead">
+        <strong>Select a conversation</strong>
+        <small class="help">Guest messages linked to reservations will appear here.</small>
+      </header>
+      <div id="conversationMessages" class="operator-inbox-messages"><div class="empty-inline">Choose a guest conversation from the left.</div></div>
+      <form id="replyForm" class="operator-inbox-reply" hidden>
+        <div class="field"><label for="replyBody">Reply to guest</label><textarea id="replyBody" maxlength="4000" required placeholder="Write your message…"></textarea></div>
+        <div class="form-actions"><button class="button aqua" type="submit">Send message</button><a class="button secondary" id="openReservation" href="operator-reservations.html">Open reservation</a></div>
+      </form>
+    </article>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script type="module" src="assets/js/operator-inbox-v2.js"></script>
+</body>
+</html>
