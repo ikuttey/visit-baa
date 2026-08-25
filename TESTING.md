@@ -1,194 +1,266 @@
-# Baa Local live test plan
+# Visit Baa V2 test plan
 
-Run these tests in a disposable Supabase staging project before production. Record the test account IDs, timestamps, expected result, actual result, and any console/database errors. The static source checks do not replace these live tests.
+This test plan covers the current Visit Baa marketplace and the single-owner Operator V2 architecture. Run destructive/live workflow tests in a disposable Supabase staging project when possible. Never store real passwords, service-role keys, or production secrets in the repository.
 
-## Prerequisites
+## Current Operator V2 ownership
 
-- All tracked migrations completed without errors.
-- Email confirmation and redirect URLs configured.
-- One verified administrator account.
-- Two separate operator accounts: Operator A and Operator B.
-- A private/incognito browser window for public tests.
+Each operational job has one main workspace:
 
-Never store test passwords in this repository. Supply operator/admin credentials
-only through the browser or temporary process environment during a live test.
+- **Property** — business registration, identity, verification details, logo/gallery.
+- **Listings & rooms** — listing content, rooms, room photos, packages, transfer details, pricing components, media, revisions.
+- **Calendar** — accommodation sellable inventory, rate overrides, stay restrictions, stop-sell, recurring service schedules and one-date exceptions.
+- **Reservations** — Visit Baa booking requests, quote/price confirmation, holds, confirmation, changes, decline, cancellation, completion, no-show, notes and payment references in booking context.
+- **External bookings** — Booking.com, Agoda, direct and walk-in accommodation bookings, including safe edits/cancellation with inventory recalculation.
+- **Payments** — finance-focused payment reference/reconciliation view without unnecessary guest contact data.
+- **Inbox** — guest conversations across reservations.
+- **Rates / Promotions** — accommodation rate plans and promotions.
+- **Reviews** — responses and reports.
+- **Analytics** — currency-safe performance metrics.
+- **Settings** — notifications, arrival information, staff access and audit history.
 
-## Automated public browser check
+Do not reintroduce retired V1 listing, availability, enquiry, promotion or review forms into Property.
 
-Start the source site, then run the credential-free desktop/mobile check in a
-second terminal:
+## Install and run automated checks
+
+Node 20+ is required.
 
 ```powershell
-npm start
+npm ci
+npx playwright install chromium
+npm test
+```
+
+`npm test` includes source/static checks plus the current Operator V2 browser smoke suite.
+
+Additional browser checks:
+
+```powershell
+npm run test:browser:operator-v2
 npm run test:browser:public
 npm run test:browser:facilities
 npm run test:browser:marketplace
 ```
 
-This uses isolated Chrome contexts, verifies the anonymous catalogue and public
-business page, checks signed images, exercises the invalid-business state, and
-detects console, network, image, and mobile-overflow failures. It does not
-replace the authenticated operator/administrator workflow below.
+The Operator V2 browser test exercises the current workspaces under Owner, Reservations, Content and Finance roles and fails on browser page errors. It also verifies the pending-business → verified-business switch on Listings without requiring a page refresh.
 
-The marketplace browser suite checks URL-backed filters and mobile overflow at
-320, 375, 430, 768, and 1280 px. `npm test` also verifies pricing/date helpers,
-new-table RLS declarations, fixed function search paths, participant-only
-messaging, immutable review content, and guarded inventory decrements.
+## Migration and deployment checks
 
-## Dates, directional routes, and manta planner
+Before production deployment:
 
-1. Open the homepage When control. Confirm Stay requires check-in/check-out and sends `category=accommodation`, `checkin`, `checkout`, adults, and rooms to the listing URL.
-2. Switch to Activity and Transfer. Confirm each accepts one date and Transfer sends `category=transfer`.
-3. Create A-to-B and B-to-A transfer listings with different schedules. Confirm each direction is returned only from its own published route record.
-4. Test a direct route, a two-leg connection with at least 45 minutes between legs, a 44-minute invalid connection, a non-operating day, and insufficient passenger capacity.
-5. Pause a transfer listing or its route. Confirm it disappears from both homepage and manta results.
-6. Open the manta on desktop and mobile customer pages. Confirm data loads only after opening, route gaps are explicit, every result links to a real listing, and no operator/admin page includes the widget.
-7. Add a generated plan while signed in and confirm its real listing legs/items appear in My Baa Trip. Repeat signed out and confirm a recoverable local draft is stored.
-8. From a draft, choose **Request these bookings**, review the warning, then choose **Send booking requests**. Confirm each selected item produces one operator-owned booking and retrying the same request key produces no duplicates.
-9. Test pay-later, custom deposit, and full-prepayment listings. Confirm the traveler sees per-operator pay-now/pay-later amounts and aggregate trip totals.
-10. Submit a direct-payment reference with and without proof. Confirm only its operator can read and review it, another operator cannot, and the administrator can monitor it.
+1. Confirm the local `supabase/migrations` history matches production versions.
+2. Confirm the latest production migrations include:
+   - `20260825074051_retire_operator_v1_duplicate_rpcs`
+   - `20260825104633_operator_v2_audit_hardening`
+   - `20260825105332_operator_finance_queue_complete`
+   - `20260825114106_operator_v2_audit_finalization`
+   - `20260825114822_operator_calendar_staff_visibility`
+3. Run `npm run check` and `npm test`.
+4. Confirm no legacy RPC calls remain for `operator_set_room_availability_range` or old `operator_listing_analytics`.
+5. Confirm no retired `operator-content-compat-v2.js` or V1 operator dashboard controller is referenced.
 
-## Marketplace search and room inventory
+## Authentication and business onboarding
 
-1. Create two room types with different occupancy, prices, photos, and rate plans.
-2. Add nightly inventory for every date in a three-night stay; block one night for one room type.
-3. Search by island, check-in/out, adults, children, and rooms. Confirm only a room available for every night appears.
-4. Refresh and share the URL; confirm every filter reloads correctly.
-5. Test a legacy accommodation without room rows but with all-day availability; it must still appear when the full stay is available.
-6. Test an activity date/session and requested guests. Sold-out or insufficient-capacity sessions must not appear.
-7. Exercise price range, facility filters, price sorting, Load more, and map view.
+1. Register an operator and confirm email verification is required as configured.
+2. Log in and open Property.
+3. Register a new business and confirm it starts `pending_review` and inactive.
+4. Confirm Listings remains locked while the business is pending.
+5. Approve the business from Admin and confirm it becomes `verified` and active.
+6. Request changes/reject a second business, edit it, resubmit, and confirm it returns to pending/inactive until approval.
+7. Suspend a verified business and confirm its public listings disappear.
+8. With one pending and one verified business under the same account, open Listings while pending is selected, switch to verified, and confirm all advanced listing controls work without refreshing.
 
-## Reservations, travelers, reviews, and trips
+## Listings, packages and pricing components
 
-1. Create and verify a traveler account; operator and admin redirects must remain role-specific.
-2. Send accommodation and activity-session requests. Confirm each reference starts with `VB-` and the returned quote matches stored database prices.
-3. Accept then confirm each request. Confirm room/session inventory is decremented once.
-4. Race two confirmation requests against the final room/session; exactly one must succeed.
-5. Cancel a confirmed traveler booking and verify inventory is restored without exceeding its configured maximum.
-6. Exchange messages in both directions; another traveler and another operator must receive zero rows for the thread.
-7. Save a listing, add it to My Baa Trip, remove it, and verify another traveler cannot read those rows.
-8. Complete a reservation and submit a categorized review. A fake review without a completed reservation must fail.
-9. Post one operator response, report the review, and moderate it as admin. Attempts to change score or text must fail.
-10. Create, deactivate, and delete a date-bound promotion; verify only active/current offers display and the server quote applies the best valid discount.
+For every listing category, create a draft and verify the correct category-specific controls.
 
-## Authentication
+### Accommodation
 
-1. Register Operator A and confirm that the UI reports **Pending review**.
-2. Confirm no authenticated dashboard session exists before email verification.
-3. Open the verification email and confirm the redirect reaches `login.html?verified=1`.
-4. Log in with the verified account and refresh `operator-dashboard.html`; the session should restore.
-5. Log out and confirm the dashboard redirects to login.
-6. Request a password reset, open the email, set a new 10+ character password, and log in with it.
-7. Open `operator-dashboard.html` signed out and confirm redirect to login.
-8. Open `admin-dashboard.html` as a normal operator and confirm redirect to the operator dashboard.
+1. Create an accommodation listing.
+2. Add multiple room types with different capacity, quantity, base price and amenities.
+3. Upload room-specific photos; confirm they are stored separately from the listing gallery.
+4. Edit room captions/order and remove a room photo.
+5. Configure accommodation policies and confirm canonical cancellation/payment values save correctly.
+6. Submit the listing and verify admin review/publish.
+7. Edit a published listing through a safe revision and confirm the live listing remains published until approval.
 
-## Business review
+### Excursion package
 
-1. Verify Operator A cannot create a listing while the business is pending.
-2. Inspect and approve Operator A’s business from the admin dashboard.
-3. Refresh Operator A’s dashboard and confirm **Verified** status and enabled listing creation.
-4. Register Operator B; request changes with a reason.
-5. Edit Operator B’s business, use **Resubmit for review**, and confirm it returns to pending.
-6. Reject a test business with a reason and confirm the operator sees the status/note.
-7. Suspend a verified test business and confirm its public listings disappear.
+1. Set `Listing type = Excursion package`.
+2. Select at least two structured activities.
+3. Confirm submission is blocked with fewer than two activities.
+4. Configure operating days, equipment, meal, drinking water, pickup and drop-off notes.
+5. Save/reopen and confirm values are preserved exactly.
+6. Use `Built from separate charges` and add at least one required price component.
+7. Add optional/included components such as guide, boat transfer, ticket and equipment.
+8. Confirm component-only submission is blocked if no required component exists.
 
-## Listings and approval
+### Transfer
 
-1. Create every listing category at least once.
-2. Create an accommodation listing and confirm required accommodation fields are enforced.
-3. Set available spaces above maximum capacity and confirm the UI/database reject it.
-4. Save a draft, edit it, upload a cover and gallery images, then submit it.
-5. Attempt to edit the pending listing with a crafted API call; the database must reject it.
-6. Approve/publish from the administrator dashboard.
-7. Confirm the listing appears in `listings.html` and `listing.html?id=...`.
-8. Pause the listing as the operator and confirm it disappears publicly.
-9. Edit the paused listing and resubmit; an administrator must approve before it returns publicly.
-10. Request changes and reject separate listings; confirm notes appear to the operator.
+1. Create a transfer route with origin/destination and route details.
+2. Configure Shared or Private service type.
+3. Configure Per-person or Private-fixed pricing.
+4. Configure operating days, minimum passengers, infant/private price and luggage rules.
+5. Save/reopen and confirm no route values are reset to defaults.
 
-## Availability
+## Calendar and inventory
 
-1. Add a future date/time with maximum capacity 8 and remaining spaces 6.
-2. Attempt remaining spaces `-1`; expect rejection.
-3. Attempt remaining spaces `9`; expect rejection.
-4. Block a date and confirm remaining spaces becomes zero.
-5. Edit and delete availability.
-6. Confirm only non-blocked, future availability for a published listing appears publicly.
+### Accommodation
 
-## Booking enquiries
+1. Configure room sellable quantity for a date range.
+2. Set price override, min/max stay, min/max advance booking, CTA/CTD, stop-sell and blocked flags.
+3. Confirm current held/confirmed Visit Baa bookings and external bookings remain protected.
+4. Race two bookings against the last available room and confirm only one succeeds.
+5. Cancel a confirmed booking and confirm inventory restores without exceeding sellable quantity.
+6. As Reservations staff, confirm the Calendar can read room types and rate plans and can operate allowed calendar functions.
+7. On mobile, verify the 7-day calendar view and Open/Close date quick actions.
 
-1. Submit an enquiry for an approved listing from a signed-out browser.
-2. Confirm the visitor receives the “not confirmed until accepted” message.
-3. Confirm the enquiry appears only in the correct operator dashboard with **New** status.
-4. Accept, decline, complete, and cancel separate test enquiries.
-5. Attempt a guest count above the selected remaining capacity; expect rejection.
-6. Attempt a past requested date; expect rejection.
-7. Confirm no anonymous query can select from `booking_enquiries`.
+### Scheduled services
 
-## Cross-operator and authorization attacks
+1. Add a recurring rule and generate 12 months of sessions.
+2. Confirm generated availability rows carry a `schedule_rule_id`.
+3. Pause the rule and confirm only future sessions generated by that rule close.
+4. Confirm a manual session at the same weekday/time is not closed by pausing another recurring rule.
+5. Reactivate the rule and confirm future linked sessions regenerate/reopen correctly.
+6. Add a one-date exception: cancel one date.
+7. Add one-date time/capacity overrides.
+8. Restore the recurring schedule for that date.
+9. Delete the recurring rule and confirm linked future sessions close while confirmed booking records remain.
 
-Use staging UUIDs for Operator A and B. The successful listing must first be
-created through **Save draft** in the authenticated operator webpage. Privileged
-SQL may inspect or negatively probe the resulting row, but it is not proof that
-the browser INSERT/RLS workflow works. For optional diagnostic policy checks,
-use a transaction and replace the placeholders first:
+## Reservations
 
-```sql
-begin;
+1. Submit accommodation and activity booking requests.
+2. Confirm booking references and stored price snapshots.
+3. For price-confirmation-required requests, use **Confirm price / Quote** and verify subtotal/taxes/fees.
+4. Accept and hold inventory.
+5. Request changes and verify customer-facing state.
+6. Decline a test request.
+7. Confirm a held booking and verify inventory commits once.
+8. Cancel, complete and mark no-show on separate bookings.
+9. Add/update internal notes.
+10. Exchange messages from reservation context and Inbox.
+11. Submit/review payment references and service-payment records.
 
-select set_config(
-  'request.jwt.claims',
-  json_build_object('sub', 'OPERATOR_A_UUID', 'role', 'authenticated')::text,
-  true
-);
-set local role authenticated;
+## External Booking.com / Agoda / direct / walk-in bookings
 
--- Must return only Operator A's row.
-select id, owner_id, business_name, status from public.businesses;
+1. Add a Booking.com booking covering multiple nights.
+2. Confirm Visit Baa room inventory is reduced for every stay night.
+3. Add Agoda/direct/walk-in examples.
+4. Attempt an external booking that exceeds available stock; expect rejection.
+5. Edit an active external booking's dates, room type and room count.
+6. Confirm the old inventory is released, the new stay is validated and the new dates are blocked in one transaction.
+7. Attempt a duplicate active source/reference; expect rejection.
+8. Cancel an external booking and confirm stock restores.
+9. Confirm Reservations staff can use this workspace.
 
--- Replace with Operator B's business ID. Must update zero rows or raise.
-update public.businesses
-set business_name = 'Unauthorized change'
-where id = 'OPERATOR_B_BUSINESS_UUID';
+## Payments / Finance privacy
 
--- Must fail: status is not an operator-updatable column.
-update public.businesses
-set status = 'verified'
-where owner_id = 'OPERATOR_A_UUID';
+1. Add a Finance staff member with an existing Visit Baa account.
+2. Confirm Finance lands on payment-oriented Home/Payments views rather than full guest operations.
+3. Confirm Finance cannot directly select full private reservation rows.
+4. Confirm the payment queue contains booking reference, service, amount/reference/proof/status and service-payment information.
+5. Confirm guest email, phone and private messages are not exposed in the Finance workspace.
+6. Open a submitted payment proof as Finance; the signed image must load.
+7. Confirm/reject a payment reference.
+8. Record and clear service-payment received status.
 
--- Must fail through the workflow trigger even if attempted directly.
-update public.listings
-set status = 'published'
-where id = 'OPERATOR_A_DRAFT_LISTING_UUID';
+## Staff roles
 
--- Must not reveal another operator's enquiries.
-select id, operator_id, guest_email from public.booking_enquiries;
+Test every role against navigation and backend permissions:
 
-rollback;
-```
+### Owner
+Full operator workspaces, Property and staff administration.
 
-Also test through the browser/network panel:
+### Manager
+Day-to-day operations except owner-only business identity controls.
 
-- Operator A requests Operator B’s business/listing/enquiry UUID directly.
-- Operator A attempts to attach a Storage path beginning with Operator B’s UUID.
-- An anonymous client selects base `businesses`, `listings`, and `booking_enquiries` tables.
-- An anonymous client queries `public_listings`; only approved rows should appear.
-- An operator changes a pending listing’s text or cover path; expect rejection.
-- A non-admin calls `admin_review_business` or `admin_review_listing`; expect rejection.
+### Reservations
+Reservations, Inbox/messages, Calendar, External bookings and permitted analytics. Verify Calendar room/rate SELECT permissions work.
 
-## Mobile, accessibility, and browser checks
+### Content
+Listings, room/content management, rate-plan structure/promotions and arrival content. Confirm Home does not require private reservation access.
 
-1. Test at 320 px, 375 px, 768 px, and desktop widths.
-2. Complete registration, login, listing creation, filters, and enquiry submission using keyboard only.
-3. Confirm visible focus indicators, associated labels, error messages, and status announcements.
-4. Confirm image previews and file-size/type errors.
-5. Check Chrome, Edge, Firefox, and Safari where available.
-6. Keep DevTools Console open; record and resolve unexpected errors.
-7. Test slow network/loading states and empty-state screens.
+### Finance
+Payments and analytics only as intended. Confirm no guest messages/contact details.
 
-## Static checks
+Attempt direct URL access to a workspace outside each role and confirm server-side/RLS permissions remain authoritative even if a URL is guessed.
 
-```powershell
-npm run check
-```
+## Home / multi-business isolation
 
-This verifies required files, local asset references, JavaScript syntax, balanced button tags, absence of unsafe `innerHTML` assignments, required statuses, RLS enablement statements, and common secret-key patterns.
+1. Create two businesses with accommodation rooms.
+2. Make one room low-stock in Business A and another normal in Business B.
+3. Select Business B on Home and confirm Business A's low-stock warning never appears.
+4. Switch to Business A and confirm its low-stock warning appears.
+5. Confirm bookings, payment tasks and content tasks are similarly scoped to the selected business.
+
+## Inbox
+
+1. Exchange messages with guest and multiple operator staff members.
+2. Confirm labels display `Guest`, `You` and `Team` correctly.
+3. Confirm incoming messages appear without manual Refresh.
+4. Load older conversations.
+5. Test welcome, payment and arrival templates.
+6. Verify a Reservations staff user can read public/operator arrival information needed for arrival templates.
+7. Confirm another business cannot read the conversation.
+
+## Rates and Promotions
+
+1. Create fixed and derived room rate plans.
+2. Test occupancy pricing, meal plans, cancellation rules, stay restrictions and advance limits.
+3. Create Early Bird, Last Minute, Long Stay, Weekend, Seasonal and custom promotions.
+4. Validate date windows and lead-time constraints.
+5. Confirm promotions apply to the intended live listing/rate plan during safe listing revisions.
+
+## Reviews and Analytics
+
+1. Complete a reservation and submit a verified review.
+2. Respond/edit response and report the review.
+3. Confirm staff roles without review permission cannot modify responses.
+4. Verify Analytics keeps USD and MVR separate.
+5. Confirm old currency-unsafe analytics RPC is absent.
+
+## Security / RLS
+
+Verify:
+
+- All public base tables have RLS enabled.
+- Anonymous users cannot select private businesses/listings/bookings/messages/payment rows.
+- Anonymous SECURITY DEFINER access is limited to intended public booking-request/view-tracking functions.
+- Cross-operator reads/writes return zero rows or fail.
+- Storage paths cannot be attached across operators.
+- Finance proof access works only for payments belonging to businesses where the user has Finance/Reservations permission (or Admin).
+- Published public availability remains readable for customer search without leaking private operator-only rows.
+
+## Live inventory integrity SQL checks
+
+After stress tests, confirm zero problems for:
+
+- negative room availability
+- available/sellable room values above configured limits
+- negative service availability
+- service spaces above configured capacity
+- external bookings referencing missing rooms
+- listing revisions referencing missing originals
+- duplicate recurring schedule rules
+
+## Mobile and accessibility
+
+Test 320, 375, 390, 430, 768 and desktop widths.
+
+- No unintended horizontal page overflow.
+- Calendar mobile week mode remains usable.
+- Mobile **More** exposes all role-allowed workspaces.
+- Forms are keyboard-operable.
+- Focus indicators remain visible.
+- Labels and errors are understandable.
+- Dialogs/drawers can be closed by keyboard where applicable.
+- Loading/success/error states remain visible on slow connections.
+
+## Release rule
+
+Do not deploy an operator change merely because the page looks correct. A release should satisfy:
+
+1. migrations in GitHub reproduce the live schema,
+2. `npm test` passes,
+3. Operator V2 browser smoke tests pass,
+4. no unexpected browser console/page errors,
+5. live/staging inventory integrity checks remain clean.
