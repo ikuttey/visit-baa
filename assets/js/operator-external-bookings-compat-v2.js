@@ -16,6 +16,14 @@ const brand=document.querySelector('.app-header .brand');
 if(brand){brand.href='index.html';brand.innerHTML='<span class="brand-mark"></span>Visit Baa';}
 document.title='External bookings — Visit Baa';
 
+const accountNav=document.querySelector('.app-header .app-nav');
+if(accountNav){
+  accountNav.querySelectorAll('a').forEach((link)=>link.remove());
+  const website=document.createElement('a');website.href='index.html';website.textContent='Visit website';
+  const logout=document.getElementById('logoutButton');
+  if(logout)accountNav.insertBefore(website,logout);else accountNav.append(website);
+}
+
 // Auth imports this compatibility layer, so install the shared operator shell
 // asynchronously after the current module finishes evaluating.
 queueMicrotask(()=>import('./operator-shell.js').then(({installOperatorNavigation})=>installOperatorNavigation('external',{access_role:'owner'})).catch((error)=>console.error('External bookings navigation failed:',error)));
