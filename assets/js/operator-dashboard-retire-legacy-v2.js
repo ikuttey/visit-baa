@@ -17,10 +17,13 @@ const brand=document.querySelector('.app-header .brand');
 if(brand){brand.href='index.html';brand.innerHTML='<span class="brand-mark"></span>Visit Baa';}
 document.title='Property — Visit Baa';
 
-document.querySelectorAll('.app-nav a').forEach((link)=>{
-  if(/public listings/i.test(link.textContent||'')){link.textContent='Visit website';link.href='index.html';}
-  if(/visit website/i.test(link.textContent||''))link.href='index.html';
-});
+const accountNav=document.querySelector('.app-header .app-nav');
+if(accountNav){
+  accountNav.querySelectorAll('a').forEach((link)=>link.remove());
+  const website=document.createElement('a');website.href='index.html';website.textContent='Visit website';
+  const logout=document.getElementById('logoutButton');
+  if(logout)accountNav.insertBefore(website,logout);else accountNav.append(website);
+}
 
 const destinations = {
   listings: 'operator-content.html',
