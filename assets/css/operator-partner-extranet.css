@@ -1,0 +1,176 @@
+/* Visit Baa operator partner workspace.
+   Uses Visit Baa branding/colors while following a familiar OTA partner-extranet
+   hierarchy: compact account bar, dedicated operations tabs, dense work cards,
+   table-first management screens, and mobile task navigation. */
+
+.operator-v2-body,
+body[data-operator-page]{background:var(--foam)}
+
+/* Header: account row + operations row */
+body[data-operator-page] .app-header,
+.operator-v2-body .app-header{background:var(--deep);border-bottom:0;box-shadow:0 1px 0 rgba(255,255,255,.12)}
+body[data-operator-page] .app-header-inner,
+.operator-v2-body .app-header-inner{width:min(1280px,calc(100% - 32px));min-height:58px;gap:16px}
+body[data-operator-page] .brand,
+.operator-v2-body .brand{font-size:18px}
+body[data-operator-page] .brand-mark,
+.operator-v2-body .brand-mark{width:30px;height:30px}
+body[data-operator-page] .app-nav,
+.operator-v2-body .app-nav{gap:5px}
+body[data-operator-page] .app-nav>a,
+body[data-operator-page] .app-nav>.text-button,
+.operator-v2-body .app-nav>a,
+.operator-v2-body .app-nav>.text-button{border-radius:4px;padding:8px 10px;font-size:12px;font-weight:700}
+body[data-operator-page] .app-nav>a:hover,
+body[data-operator-page] .app-nav>.text-button:hover,
+.operator-v2-body .app-nav>a:hover,
+.operator-v2-body .app-nav>.text-button:hover{background:rgba(255,255,255,.1)}
+.operator-account-link[aria-current=page]{background:rgba(98,211,207,.18)!important;box-shadow:inset 0 -2px 0 var(--aqua)}
+
+.operator-partner-tabs-wrap{border-top:1px solid rgba(255,255,255,.11);background:var(--deep)}
+.operator-v2-nav{width:min(1280px,calc(100% - 32px));min-height:46px;margin:0 auto;display:flex;align-items:stretch;gap:0;overflow:visible;padding:0;scrollbar-width:none}
+.operator-v2-nav::-webkit-scrollbar{display:none}
+.operator-v2-nav>a,.operator-nav-menu>summary{position:relative;display:flex;align-items:center;min-height:46px;padding:0 14px;border-radius:0;color:rgba(255,255,255,.92);background:transparent;font-size:13px;font-weight:700;white-space:nowrap;cursor:pointer;list-style:none;text-decoration:none}
+.operator-nav-menu>summary::-webkit-details-marker{display:none}
+.operator-nav-menu>summary:after{content:'▾';margin-left:7px;font-size:9px;opacity:.85}
+.operator-v2-nav>a:hover,.operator-nav-menu>summary:hover,.operator-nav-menu[open]>summary{background:rgba(255,255,255,.09);color:#fff}
+.operator-v2-nav>a.active,.operator-v2-nav>a[aria-current=page],.operator-nav-menu.active>summary{color:#fff;box-shadow:inset 0 -3px 0 var(--aqua)}
+.operator-nav-menu{position:relative}
+.operator-nav-menu-popup{position:absolute;z-index:90;top:calc(100% - 1px);left:0;min-width:230px;padding:7px;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 14px 34px rgba(5,44,52,.2)}
+.operator-nav-menu:not([open]) .operator-nav-menu-popup{display:none}
+.operator-nav-menu-popup a{display:block;padding:10px 12px;border-radius:4px;color:var(--ink);font-size:13px;font-weight:700;text-decoration:none}
+.operator-nav-menu-popup a:hover{background:var(--foam);color:var(--sea)}
+.operator-nav-menu-popup a[aria-current=page]{background:#e8f7f5;color:var(--sea)}
+
+/* Booking-extranet-like content density, keeping Visit Baa colors */
+.operator-v2-shell{max-width:1280px;margin:0 auto;padding:0 16px 56px}
+.operator-v2-page-head{align-items:center;padding:24px 0 16px;border-bottom:1px solid var(--line);margin-bottom:16px}
+.operator-v2-page-head h1{font-size:clamp(26px,3vw,34px);letter-spacing:-.03em}
+.operator-v2-page-head p{font-size:13px;line-height:1.5;max-width:720px}
+.operator-v2-page-head .eyebrow{margin-bottom:5px;font-size:10px}
+.operator-business-tools{gap:8px}
+.operator-business-tools .field{min-width:260px}
+.operator-business-tools label{font-size:11px}
+.operator-business-tools select{min-height:38px;border-radius:4px}
+
+.operator-v2-body .panel,
+body[data-operator-page] .panel,
+.operator-work-card,
+.operator-metric,
+.analytics-card,
+.settings-section{border-radius:7px;box-shadow:none;border-color:#d2e1df}
+.operator-v2-body .panel,
+body[data-operator-page] .panel{padding:20px}
+.operator-work-card-head{padding:15px 18px;background:#fbfdfc}
+.operator-work-card-body{padding:18px}
+.operator-work-card-head h2,.operator-work-card-head h3,.panel-head h2,.panel-head h3{font-size:18px;letter-spacing:-.02em}
+.operator-work-card-head p,.panel-head p{font-size:12px;line-height:1.45}
+
+.operator-metric-grid{gap:8px;margin-bottom:14px}
+.operator-metric{padding:14px 15px;min-height:92px}
+.operator-metric strong{font-size:27px;margin-bottom:5px}
+.operator-metric span{font-size:11px;color:#405d62}
+.operator-metric small{font-size:10px;margin-top:3px}
+
+.operator-v2-body .button,
+body[data-operator-page] .button{min-height:38px;padding:8px 14px;border-radius:4px;font-size:12px}
+.operator-v2-body .button.small,
+body[data-operator-page] .button.small{min-height:32px;padding:6px 10px}
+.operator-v2-body .field input,
+.operator-v2-body .field select,
+.operator-v2-body .field textarea,
+body[data-operator-page] .field input,
+body[data-operator-page] .field select,
+body[data-operator-page] .field textarea{border-radius:4px;min-height:40px;padding:9px 10px}
+.operator-v2-body .field textarea,body[data-operator-page] .field textarea{min-height:100px}
+
+.operator-toolbar{padding:12px;background:#fbfdfc;border:1px solid var(--line);border-radius:6px;margin-bottom:12px}
+.operator-toolbar input,.operator-toolbar select{min-height:38px}
+.operator-section-tabs{gap:0;padding:0 0 14px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.operator-section-tabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;padding:10px 13px;color:#405d62}
+.operator-section-tabs button.active{background:transparent;color:var(--sea);border-bottom-color:var(--sea)}
+
+.table-wrap{border-radius:5px}
+th,td{padding:10px 12px}
+th{font-size:10px;background:#f6faf9}
+.reservation-list{gap:6px}
+.reservation-row{border-radius:5px;padding:12px 13px}
+.reservation-row:hover{box-shadow:none;background:#fbfdfc;border-color:#83cbc8}
+.detail-block{border-radius:5px;padding:12px}
+.attention-strip{border-radius:5px;padding:11px 13px}
+.empty-inline,.empty-state{border-radius:6px}
+
+.calendar-scroll{border-radius:5px;max-height:70vh}
+.calendar-grid{font-size:11px}
+.calendar-grid th,.calendar-grid td{padding:8px 6px;min-width:78px}
+.calendar-grid th:first-child,.calendar-grid td:first-child{min-width:205px}
+.calendar-cell strong{font-size:13px}
+.calendar-cell small{font-size:9px}
+
+/* Inbox */
+.operator-inbox-layout{display:grid;grid-template-columns:minmax(280px,36%) minmax(0,1fr);min-height:620px;border:1px solid var(--line);border-radius:6px;background:#fff;overflow:hidden}
+.operator-inbox-list{border-right:1px solid var(--line);min-width:0;background:#fbfdfc}
+.operator-inbox-list-head{padding:14px;border-bottom:1px solid var(--line)}
+.operator-inbox-threads{max-height:70vh;overflow:auto}
+.operator-inbox-thread{width:100%;display:block;padding:13px 14px;border:0;border-bottom:1px solid #e7efed;background:transparent;text-align:left;color:var(--ink);cursor:pointer}
+.operator-inbox-thread:hover,.operator-inbox-thread.active{background:#edf8f6}
+.operator-inbox-thread strong,.operator-inbox-thread span,.operator-inbox-thread small{display:block}
+.operator-inbox-thread span{margin-top:3px;color:#536d72;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.operator-inbox-thread small{margin-top:5px;color:#809397;font-size:10px}
+.operator-inbox-conversation{display:flex;min-width:0;flex-direction:column;background:#fff}
+.operator-inbox-conversation-head{padding:15px 18px;border-bottom:1px solid var(--line);background:#fbfdfc}
+.operator-inbox-messages{flex:1;min-height:360px;max-height:62vh;overflow:auto;padding:18px;display:grid;align-content:start;gap:10px}
+.operator-inbox-message{max-width:min(78%,620px);padding:10px 12px;border-radius:6px;background:#f1f5f4;border:1px solid #e1e9e7}
+.operator-inbox-message.mine{justify-self:end;background:#e8f7f5;border-color:#cbe9e4}
+.operator-inbox-message small{display:block;margin-top:5px;color:#7b8e91;font-size:10px}
+.operator-inbox-reply{padding:14px 18px;border-top:1px solid var(--line);background:#fbfdfc}
+
+/* Property page legacy shell receives the same visual system while its V1
+   operational tabs remain blocked by the V2 retirement layer. */
+body[data-operator-page=property] .page-wrap{width:min(1280px,calc(100% - 32px));padding:28px 0 70px}
+body[data-operator-page=property] .page-heading h1{font-size:34px}
+body[data-operator-page=property] .summary-card{border-radius:6px;box-shadow:none}
+
+.operator-mobile-actions{display:none}
+
+@media(max-width:900px){
+  .operator-v2-nav{overflow-x:auto;overflow-y:visible;width:100%;padding-left:14px;padding-right:14px}
+  .operator-nav-menu-popup{position:fixed;left:14px;right:14px;top:106px;min-width:0}
+  .operator-v2-page-head{align-items:flex-start;flex-direction:column}
+  .operator-business-tools{width:100%}
+  .operator-business-tools .field{flex:1;min-width:0}
+  .operator-metric-grid{grid-template-columns:repeat(3,1fr)}
+}
+
+@media(max-width:780px){
+  .operator-partner-tabs-wrap{display:none}
+  .operator-v2-shell{padding:0 12px 82px}
+  .operator-v2-page-head{padding-top:18px}
+  .operator-v2-page-head h1{font-size:28px}
+  .operator-metric-grid{grid-template-columns:repeat(2,1fr)}
+  .analytics-grid,.settings-grid{grid-template-columns:1fr}
+  .analytics-wide,.settings-section.full{grid-column:auto}
+  .reservation-row{grid-template-columns:1fr;gap:7px}
+  .reservation-status-stack{justify-content:flex-start}
+  .detail-grid{grid-template-columns:1fr}
+  .detail-block.full{grid-column:auto}
+  .operator-drawer{grid-template-columns:1fr}
+  .operator-drawer-scrim{display:none}
+  .operator-drawer-panel{width:100vw}
+  .operator-inbox-layout{grid-template-columns:1fr;min-height:0}
+  .operator-inbox-list{border-right:0;border-bottom:1px solid var(--line)}
+  .operator-inbox-threads{max-height:260px}
+  .operator-inbox-messages{min-height:300px;max-height:46vh}
+  .operator-mobile-actions{position:fixed;z-index:70;left:8px;right:8px;bottom:8px;display:flex;justify-content:space-around;gap:2px;padding:5px;border:1px solid #cfe0dd;border-radius:8px;background:rgba(255,255,255,.98);box-shadow:0 10px 28px rgba(5,44,52,.18);backdrop-filter:blur(10px)}
+  .operator-mobile-actions a{flex:1;text-decoration:none;color:#536e72;font-size:10px;font-weight:800;text-align:center;padding:8px 3px;border-radius:4px}
+  .operator-mobile-actions a[aria-current=page]{background:#e8f7f5;color:#08717a}
+}
+
+@media(max-width:470px){
+  body[data-operator-page] .app-header-inner,.operator-v2-body .app-header-inner{width:calc(100% - 20px)}
+  body[data-operator-page] .app-nav>a:not(.operator-account-link),.operator-v2-body .app-nav>a:not(.operator-account-link){display:none}
+  .operator-metric-grid{grid-template-columns:1fr 1fr}
+  .operator-metric{padding:12px}
+  .operator-metric strong{font-size:24px}
+  .media-v2-grid{grid-template-columns:1fr 1fr}
+}
