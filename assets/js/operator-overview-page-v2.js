@@ -1,65 +1,91 @@
 import {initializeOperatorPage,bindBusinessSwitcher,setPageMessage,businessCan,formatMoney,localDateString,addDays} from './operator-shell.js';
 
-const state={client:null,user:null,businesses:[],business:null,bookings:[],payments:[],analytics:null};
+const state={client:null,user:null,businesses:[],business:null,bookings:[],payments:[],analytics:null,listings:[],lowStock:[]};
 const message=document.getElementById('pageMessage');
 const businessSwitcher=document.getElementById('businessSwitcher');
-function esc(v){return String(v??'').replace(/[&<>'"]/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+function esc(v){return String(v??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function text(id,v){const n=document.getElementById(id);if(n)n.textContent=String(v);}
 function moneyMap(values,empty='—'){const entries=Object.entries(values||{}).filter(([,amount])=>Number.isFinite(Number(amount)));return entries.length?entries.map(([currency,amount])=>formatMoney(amount,currency)).join(' · '):empty;}
 function bookingTitle(b){return b.listing_title_snapshot||b.listings?.title||'Booking';}
 function dateLabel(b){return b.check_out_date?`${b.requested_date} → ${b.check_out_date}`:b.requested_date;}
-function statusLabel(v){return String(v||'').replaceAll('_',' ');}
+function role(){return state.business?.access_role||'owner';}
+function reservationsAccess(){return businessCan(state.business,'reservations');}
+function contentAccess(){return businessCan(state.business,'content');}
+function financeAccess(){return businessCan(state.business,'finance')||businessCan(state.business,'payments');}
 
 function renderActions(){
-  const host=document.getElementById('overviewActions');host.replaceChildren();
-  const actions=[];
-  if(businessCan(state.business,'reservations'))actions.push(['operator-reservations.html','Reservations']);
+  const host=document.getElementById('overviewActions');host.replaceChildren();const actions=[];
+  if(reservationsAccess())actions.push(['operator-reservations.html','Reservations']);
+  if(financeAccess()&&!reservationsAccess())actions.push(['operator-payments.html','Payments']);
   if(businessCan(state.business,'calendar'))actions.push(['operator-calendar.html','Rates & availability']);
   if(businessCan(state.business,'messages'))actions.push(['operator-inbox.html','Inbox']);
-  if(['owner','admin'].includes(state.business?.access_role||'owner'))actions.push(['operator-dashboard.html?tab=business','Property']);
-  if(businessCan(state.business,'content'))actions.push(['operator-rates.html#promotions','Promotions']);
+  if(contentAccess())actions.push(['operator-content.html','Listings']);
+  if(['owner','admin'].includes(role()))actions.push(['operator-dashboard.html','Property']);
+  if(contentAccess())actions.push(['operator-rates.html#promotions','Promotions']);
   if(businessCan(state.business,'analytics'))actions.push(['operator-analytics.html','Analytics']);
+  if(!state.business)actions.push(['operator-dashboard.html','Register business']);
   actions.forEach(([href,label],index)=>{const a=document.createElement('a');a.href=href;a.className=`button ${index===0?'aqua':'secondary'}`;a.textContent=label;host.append(a);});
 }
 
+function renderChannelStatus(){
+  let card=document.getElementById('channelStatusCard');const parent=document.getElementById('attentionList')?.closest('.operator-work-card');if(!parent)return;
+  if(!card){card=document.createElement('section');card.id='channelStatusCard';card.className='attention-strip';card.style.marginTop='14px';parent.insertAdjacentElement('afterend',card);}
+  if(!state.business||!businessCan(state.business,'external')){card.hidden=true;return;}
+  card.hidden=false;card.innerHTML='<span><strong>Booking channels</strong><br><small>Booking.com and Agoda are currently recorded manually in Visit Baa. Automatic calendar sync is not connected yet.</small></span><a class="button small secondary" href="operator-availability.html">External bookings</a>';
+}
+
 function renderAttention(){
-  const host=document.getElementById('attentionList');
-  const now=Date.now();
-  const items=[];
-  state.bookings.filter((b)=>b.status==='new'||b.quote_status==='availability_confirmation_required').forEach((b)=>items.push({priority:1,title:`New · ${bookingTitle(b)}`,meta:`${b.guest_full_name} · ${dateLabel(b)}`,id:b.id}));
-  state.bookings.filter((b)=>b.hold_status==='active'&&b.hold_expires_at&&new Date(b.hold_expires_at).getTime()-now<6*3600e3).forEach((b)=>items.push({priority:2,title:`Hold expiring · ${bookingTitle(b)}`,meta:`${b.guest_full_name} · ${new Date(b.hold_expires_at).toLocaleString()}`,id:b.id}));
-  state.payments.filter((p)=>p.status==='submitted').forEach((p)=>{const b=state.bookings.find((x)=>x.id===p.booking_id);items.push({priority:1,title:`Payment reference · ${b?bookingTitle(b):'Booking'}`,meta:`${p.currency} ${Number(p.amount).toFixed(2)} · ${p.payment_reference}`,id:p.booking_id});});
+  const host=document.getElementById('attentionList');const items=[];const now=Date.now();
+  if(reservationsAccess()){
+    state.bookings.filter((b)=>b.status==='new'||b.quote_status==='availability_confirmation_required').forEach((b)=>items.push({priority:1,title:`New · ${bookingTitle(b)}`,meta:`${b.guest_full_name} · ${dateLabel(b)}`,href:`operator-reservations.html?id=${encodeURIComponent(b.id)}`}));
+    state.bookings.filter((b)=>b.hold_status==='active'&&b.hold_expires_at&&new Date(b.hold_expires_at).getTime()-now<6*3600e3).forEach((b)=>items.push({priority:2,title:`Hold expiring · ${bookingTitle(b)}`,meta:`${b.guest_full_name} · ${new Date(b.hold_expires_at).toLocaleString()}`,href:`operator-reservations.html?id=${encodeURIComponent(b.id)}`}));
+  }
+  if(financeAccess())state.payments.filter((p)=>p.reference_status==='submitted'||p.status==='submitted').forEach((p)=>items.push({priority:1,title:`Payment reference · ${p.listing_title||'Booking'}`,meta:`${p.currency||''} ${p.amount!=null?Number(p.amount).toFixed(2):''} · ${p.payment_reference||p.booking_reference||''}`,href:'operator-payments.html'}));
+  if(contentAccess())state.listings.filter((l)=>['changes_requested','rejected'].includes(l.status)).forEach((l)=>items.push({priority:1,title:`Listing needs changes · ${l.title}`,meta:l.review_note||String(l.status).replaceAll('_',' '),href:`operator-content.html?listing=${encodeURIComponent(l.id)}`}));
+  state.lowStock.forEach((x)=>items.push({priority:2,title:`Low room stock · ${x.roomName}`,meta:`${x.available_date} · ${x.available_quantity} room${Number(x.available_quantity)===1?'':'s'} left`,href:'operator-calendar.html'}));
   items.sort((a,b)=>a.priority-b.priority);
-  if(!items.length){host.innerHTML='<div class="empty-state"><strong>Nothing urgent</strong><span>No new booking requests, expiring holds or submitted payment references need attention.</span></div>';return;}
-  host.innerHTML=`<div class="reservation-list">${items.slice(0,12).map((item)=>`<a class="reservation-row" href="operator-reservations.html?id=${encodeURIComponent(item.id)}"><div><strong>${esc(item.title)}</strong><span>${esc(item.meta)}</span></div><span>Open →</span></a>`).join('')}</div>`;
+  if(!items.length){host.innerHTML='<div class="empty-state"><strong>Nothing urgent</strong><span>No current tasks need immediate attention for your role.</span></div>';return;}
+  host.innerHTML=`<div class="reservation-list">${items.slice(0,14).map((item)=>`<a class="reservation-row" href="${item.href}"><div><strong>${esc(item.title)}</strong><span>${esc(item.meta)}</span></div><span>Open →</span></a>`).join('')}</div>`;
 }
 
 function renderUpcoming(){
-  const host=document.getElementById('upcomingList');const today=localDateString();
-  const rows=state.bookings.filter((b)=>['accepted','confirmed'].includes(b.status)&&b.requested_date>=today).sort((a,b)=>String(a.requested_date).localeCompare(String(b.requested_date))).slice(0,10);
+  const host=document.getElementById('upcomingList');
+  if(!reservationsAccess()){if(contentAccess())host.innerHTML=`<div class="empty-state"><strong>${state.listings.filter((l)=>l.status==='draft').length} listing draft(s)</strong><span>Continue content work from Listings. Published content remains live while revisions are reviewed.</span></div>`;else if(financeAccess())host.innerHTML='<div class="empty-state"><strong>Payment-focused access</strong><span>Use Payments to review customer references and record service payments without opening private reservation details.</span></div>';else host.innerHTML='<div class="empty-state"><strong>No operational access</strong><span>Use the navigation items available to your staff role.</span></div>';return;}
+  const today=localDateString();const rows=state.bookings.filter((b)=>['accepted','confirmed'].includes(b.status)&&b.requested_date>=today).sort((a,b)=>String(a.requested_date).localeCompare(String(b.requested_date))).slice(0,10);
   if(!rows.length){host.innerHTML='<div class="empty-state"><strong>No upcoming bookings</strong><span>Accepted and confirmed reservations will appear here.</span></div>';return;}
-  host.innerHTML=`<div class="reservation-list">${rows.map((b)=>`<a class="reservation-row" href="operator-reservations.html?id=${encodeURIComponent(b.id)}"><div><strong>${esc(bookingTitle(b))}</strong><span>${esc(b.guest_full_name)} · ${esc(dateLabel(b))}</span></div><span class="status ${esc(statusLabel(b.status).replaceAll(' ','-'))}">${esc(statusLabel(b.status))}</span></a>`).join('')}</div>`;
+  host.innerHTML=`<div class="reservation-list">${rows.map((b)=>`<a class="reservation-row" href="operator-reservations.html?id=${encodeURIComponent(b.id)}"><div><strong>${esc(bookingTitle(b))}</strong><span>${esc(b.guest_full_name)} · ${esc(dateLabel(b))}</span></div><span class="badge-paid">${esc(String(b.status).replaceAll('_',' '))}</span></a>`).join('')}</div>`;
 }
 
+function setMetricLabel(id,label,help){const metric=document.getElementById(id)?.closest('.operator-metric');if(!metric)return;metric.querySelector('span').textContent=label;metric.querySelector('small').textContent=help;}
 function renderMetrics(){
   const a=state.analytics||{};const today=localDateString();
-  text('oNew',state.bookings.filter((b)=>b.status==='new').length);
-  text('oArrivals',state.bookings.filter((b)=>['accepted','confirmed'].includes(b.status)&&b.requested_date===today).length);
-  text('oPayment',state.payments.filter((p)=>p.status==='submitted').length);
-  text('oConfirmed',a.confirmed_bookings??0);text('oValue',moneyMap(a.confirmed_value_by_currency));text('oOccupancy',a.occupancy_percent==null?'—':`${a.occupancy_percent}%`);text('oADR',moneyMap(a.adr_by_currency));text('oCancel',`${a.cancellation_rate??0}%`);text('oViews',a.listing_views??0);text('oConversion',`${a.conversion_percent??0}%`);
+  if(contentAccess()&&!reservationsAccess()&&!financeAccess()){
+    setMetricLabel('oNew','Draft listings','Content in progress');setMetricLabel('oArrivals','Needs changes','Admin feedback');setMetricLabel('oPayment','Published','Live listings');text('oNew',state.listings.filter((l)=>l.status==='draft').length);text('oArrivals',state.listings.filter((l)=>['changes_requested','rejected'].includes(l.status)).length);text('oPayment',state.listings.filter((l)=>l.status==='published').length);
+  }else if(financeAccess()&&!reservationsAccess()){
+    setMetricLabel('oNew','Payment references','Submitted for review');setMetricLabel('oArrivals','Service payments','Recorded received');setMetricLabel('oPayment','Payment work','Needs attention');text('oNew',state.payments.filter((p)=>p.reference_status==='submitted').length);text('oArrivals',state.payments.filter((p)=>p.service_payment_received_at).length);text('oPayment',state.payments.filter((p)=>!p.service_payment_received_at||p.reference_status==='submitted').length);
+  }else{
+    setMetricLabel('oNew','New requests','Need a response');setMetricLabel('oArrivals','Arrivals today','Accepted / confirmed');setMetricLabel('oPayment','Payment references','Need review');text('oNew',state.bookings.filter((b)=>b.status==='new').length);text('oArrivals',state.bookings.filter((b)=>['accepted','confirmed'].includes(b.status)&&b.requested_date===today).length);text('oPayment',state.payments.filter((p)=>p.status==='submitted'||p.reference_status==='submitted').length);
+  }
+  text('oConfirmed',a.confirmed_bookings??0);text('oValue',moneyMap(a.confirmed_value_by_currency));text('oOccupancy',a.occupancy_percent==null?'—':`${a.occupancy_percent}%`);text('oADR',moneyMap(a.adr_by_currency));text('oCancel',a.cancellation_rate==null?'—':`${a.cancellation_rate}%`);text('oViews',a.listing_views??'—');text('oConversion',a.conversion_percent==null?'—':`${a.conversion_percent}%`);
+}
+
+async function loadLowStock(){
+  state.lowStock=[];if(!state.business||!businessCan(state.business,'calendar'))return;const start=localDateString(),end=addDays(start,14);
+  const inv=await state.client.from('room_availability').select('room_id,available_date,available_quantity,is_blocked,stop_sell').gte('available_date',start).lte('available_date',end).lte('available_quantity',1).eq('is_blocked',false).eq('stop_sell',false).order('available_date').limit(20);if(inv.error)return;
+  const rows=inv.data||[];const ids=[...new Set(rows.map((x)=>x.room_id))];let names={};if(ids.length){const rooms=await state.client.from('accommodation_rooms').select('id,name').in('id',ids);if(!rooms.error)names=Object.fromEntries((rooms.data||[]).map((r)=>[r.id,r.name]));}
+  state.lowStock=rows.map((x)=>({...x,roomName:names[x.room_id]||'Room'}));
 }
 
 async function loadBusinessData(){
-  if(!state.business)return;setPageMessage(message,'Loading overview…','loading');
+  state.bookings=[];state.payments=[];state.listings=[];state.analytics={};state.lowStock=[];renderActions();renderChannelStatus();if(!state.business){renderAttention();renderUpcoming();renderMetrics();return;}setPageMessage(message,'Loading home…','loading');
   try{
-    const bookingResult=await state.client.from('booking_enquiries').select('id,listing_id,guest_full_name,requested_date,check_out_date,status,quote_status,hold_status,hold_expires_at,payment_status,listing_title_snapshot,listings(title)').eq('business_id',state.business.id).gte('requested_date',addDays(localDateString(),-60)).order('requested_date');
-    if(bookingResult.error)throw bookingResult.error;state.bookings=bookingResult.data||[];
-    const ids=state.bookings.map((b)=>b.id);state.payments=[];
-    if(ids.length&&(businessCan(state.business,'reservations')||businessCan(state.business,'finance'))){const paymentResult=await state.client.from('payment_references').select('id,booking_id,amount,currency,payment_reference,status').in('booking_id',ids).order('created_at',{ascending:false});if(paymentResult.error)throw paymentResult.error;state.payments=paymentResult.data||[];}
-    if(businessCan(state.business,'analytics')){const to=localDateString(),from=addDays(to,-29);const result=await state.client.rpc('operator_business_analytics',{p_business_id:state.business.id,p_from:from,p_to:to});if(result.error)throw result.error;state.analytics=result.data||{};}else state.analytics={};
-    renderActions();renderAttention();renderUpcoming();renderMetrics();setPageMessage(message,'');
-  }catch(error){setPageMessage(message,error.message||'Could not load overview.','error');}
+    const tasks=[];
+    if(reservationsAccess())tasks.push((async()=>{const result=await state.client.from('booking_enquiries').select('id,listing_id,guest_full_name,requested_date,check_out_date,status,quote_status,hold_status,hold_expires_at,payment_status,listing_title_snapshot,listings(title)').eq('business_id',state.business.id).gte('requested_date',addDays(localDateString(),-60)).order('requested_date');if(result.error)throw result.error;state.bookings=result.data||[];})());
+    if(financeAccess())tasks.push((async()=>{const result=await state.client.rpc('operator_finance_payment_queue',{p_business_id:state.business.id});if(result.error)throw result.error;state.payments=result.data||[];})());
+    if(contentAccess())tasks.push((async()=>{const result=await state.client.from('listings').select('id,title,status,review_note,revision_of_listing_id').eq('business_id',state.business.id).order('updated_at',{ascending:false});if(result.error)throw result.error;state.listings=result.data||[];})());
+    if(businessCan(state.business,'analytics'))tasks.push((async()=>{const to=localDateString(),from=addDays(to,-29);const result=await state.client.rpc('operator_business_analytics',{p_business_id:state.business.id,p_from:from,p_to:to});if(result.error)throw result.error;state.analytics=result.data||{};})());
+    tasks.push(loadLowStock());await Promise.all(tasks);renderActions();renderChannelStatus();renderAttention();renderUpcoming();renderMetrics();setPageMessage(message,'');
+  }catch(error){setPageMessage(message,error.message||'Could not load Home.','error');}
 }
-
-async function init(){try{const base=await initializeOperatorPage('overview');Object.assign(state,base);bindBusinessSwitcher(businessSwitcher,state,loadBusinessData);await loadBusinessData();}catch(error){setPageMessage(message,error.message||'Could not open operator overview.','error');}}
+async function init(){try{const base=await initializeOperatorPage('overview');Object.assign(state,base);bindBusinessSwitcher(businessSwitcher,state,loadBusinessData);await loadBusinessData();}catch(error){setPageMessage(message,error.message||'Could not open operator Home.','error');}}
 init();
