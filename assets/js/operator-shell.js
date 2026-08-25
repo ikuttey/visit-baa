@@ -107,6 +107,7 @@ export async function initializeOperatorPage(active='overview'){
     const table=document.getElementById('listingTable');if(table)table.innerHTML='<div class="empty-state"><strong>Register a business first</strong><span>Your business must exist before you can create listings. Open Property to register your business and submit it for administrator approval.</span><a class="button aqua" href="operator-dashboard.html?tab=business">Register business</a></div>';
   }
 
+  queueMicrotask(()=>import('./operator-header-layout-v2.js?v=1').catch((error)=>console.error('Operator header layout fix failed:',error)));
   queueMicrotask(()=>import('./operator-notifications.js?v=2').catch((error)=>console.error('Operator notification center failed:',error)));
   if(active==='listings'&&business){
     await import('./operator-content-compat-v2.js?v=1').catch((error)=>console.error('Listing schema compatibility failed:',error));
