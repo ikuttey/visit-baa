@@ -112,7 +112,7 @@ try {
   await results.getByRole('button',{name:'Add This Trip'}).click();
   await results.locator('.manta-auth-prompt').waitFor();
   assert.ok(await homePage.evaluate(()=>Boolean(localStorage.getItem('baa_planner_draft'))),'anonymous planner draft must remain on the device');
-  await Promise.all([homePage.waitForURL(/index\.html\?resumePlanner=1$/),results.getByRole('button',{name:'Edit trip details'}).click()]);
+  await Promise.all([homePage.waitForURL(/index\.html\?resumePlanner=1$/),results.locator('.manta-page-results-head').getByRole('button',{name:'Edit trip details'}).click()]);
   await homePage.locator('.manta-planner-drawer[open]').waitFor();
   for(const width of [320,375,430]){
     await homePage.setViewportSize({width,height:840});
