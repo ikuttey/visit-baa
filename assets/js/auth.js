@@ -91,5 +91,6 @@ if (typeof document !== 'undefined' && document.getElementById('businessForm') &
   queueMicrotask(() => import('./operator-onboarding-simple.js?v=2').catch((error) => console.error('Operator onboarding enhancement failed:', error)));
   queueMicrotask(() => import('./operator-notifications.js?v=2').catch((error) => console.error('Operator notification center failed:', error)));
   queueMicrotask(() => import('./operator-overview-v2.js?v=1').catch((error) => console.error('Operator V2 overview failed:', error)));
-  queueMicrotask(() => import('./operator-listing-enhancements-v2.js?v=1').catch((error) => console.error('Operator listing enhancements failed:', error)));
+  queueMicrotask(() => import('./operator-listing-enhancements-v2.js?v=2').catch((error) => console.error('Operator listing enhancements failed:', error)));
+  queueMicrotask(() => import('./operator-category-unlock-v2.js?v=1').catch((error) => console.error('Operator listing category compatibility failed:', error)));
 }
