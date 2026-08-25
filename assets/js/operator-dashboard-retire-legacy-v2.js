@@ -3,6 +3,25 @@
 // dedicated pages. Hide and block the old operational tabs so their legacy
 // write handlers cannot overwrite V2-calculated inventory or bypass workflows.
 
+document.body.classList.add('operator-v2-body');
+document.body.dataset.operatorPage='property';
+
+if(!document.querySelector('link[href*="operator-v2.css"]')){
+  const link=document.createElement('link');link.rel='stylesheet';link.href='assets/css/operator-v2.css';document.head.append(link);
+}
+if(!document.querySelector('link[data-operator-partner-style]')){
+  const link=document.createElement('link');link.rel='stylesheet';link.href='assets/css/operator-partner-extranet.css?v=1';link.dataset.operatorPartnerStyle='1';document.head.append(link);
+}
+
+const brand=document.querySelector('.app-header .brand');
+if(brand){brand.href='index.html';brand.innerHTML='<span class="brand-mark"></span>Visit Baa';}
+document.title='Property — Visit Baa';
+
+document.querySelectorAll('.app-nav a').forEach((link)=>{
+  if(/public listings/i.test(link.textContent||'')){link.textContent='Visit website';link.href='index.html';}
+  if(/visit website/i.test(link.textContent||''))link.href='index.html';
+});
+
 const destinations = {
   listings: 'operator-content.html',
   availability: 'operator-calendar.html',
@@ -25,8 +44,10 @@ if (requestedTab && destinations[requestedTab]) {
     .tab-panel[data-tab-panel="availability"],
     .tab-panel[data-tab-panel="enquiries"],
     .tab-panel[data-tab-panel="reviewsOffers"]{display:none!important}
-    .operator-v2-property-links{margin:0 0 22px}
-    .operator-v2-property-links .form-actions{margin-top:14px}
+    .operator-v2-property-links{margin:0 0 18px}
+    .operator-v2-property-links .form-actions{margin-top:12px}
+    .page-heading{margin-bottom:18px}
+    .tabs{display:none!important}
   `;
   document.head.append(style);
 
@@ -58,7 +79,9 @@ if (requestedTab && destinations[requestedTab]) {
     });
 
     const heading = document.querySelector('.page-heading h1');
-    if (heading && heading.textContent.trim() === 'Business dashboard') heading.textContent = 'Property & business profile';
+    if (heading) heading.textContent = 'Property';
+    const eyebrow=document.querySelector('.page-heading .eyebrow');
+    if(eyebrow)eyebrow.textContent='Property details';
 
     if (!document.getElementById('operatorV2PropertyLinks')) {
       const anchor = document.querySelector('.business-workspace');
@@ -67,13 +90,13 @@ if (requestedTab && destinations[requestedTab]) {
         section.id = 'operatorV2PropertyLinks';
         section.className = 'panel operator-v2-property-links';
         section.innerHTML = `
-          <div class="panel-head"><div><span class="eyebrow">V2 workspace</span><h2>Manage daily operations</h2><p>Property information stays here. Listings, inventory, reservations, rates and reviews use the dedicated V2 workspaces.</p></div></div>
+          <div class="panel-head"><div><span class="eyebrow">Quick links</span><h2>Manage your property</h2><p>Use the dedicated partner tools for content, inventory, reservations and guest communication.</p></div></div>
           <div class="form-actions">
-            <a class="button aqua" href="operator-content.html">Listings</a>
-            <a class="button secondary" href="operator-calendar.html">Calendar & Schedule</a>
+            <a class="button aqua" href="operator-content.html">Listings & rooms</a>
+            <a class="button secondary" href="operator-calendar.html">Rates & availability</a>
             <a class="button secondary" href="operator-reservations.html">Reservations</a>
-            <a class="button secondary" href="operator-rates.html">Rates & Promotions</a>
-            <a class="button secondary" href="operator-reviews.html">Reviews</a>
+            <a class="button secondary" href="operator-inbox.html">Inbox</a>
+            <a class="button secondary" href="operator-rates.html#promotions">Promotions</a>
           </div>`;
         anchor.insertAdjacentElement('afterend', section);
       }
