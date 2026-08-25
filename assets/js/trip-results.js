@@ -98,7 +98,7 @@ function summaryChips(){
   return el('div',{className:'trip-results-summary',children:[el('span',{text:state.answers.islands[0]}),el('span',{text:`${state.answers.startDate} to ${state.answers.endDate} · ${nights} nights`}),el('span',{text:`${state.answers.adults} adult${state.answers.adults===1?'':'s'} · ${state.answers.children} child${state.answers.children===1?'':'ren'} · ${state.answers.rooms} room${state.answers.rooms===1?'':'s'}`}),el('span',{text:stay}),el('span',{text:room})]});
 }
 
-function editSearch(){localStorage.setItem(DRAFT_KEY,JSON.stringify({answers:state.answers,selections:selections(),requirements:plannerDraftPayload(state.answers,state.journey).requirements}));location.href='index (1).html?resumePlanner=1';}
+function editSearch(){localStorage.setItem(DRAFT_KEY,JSON.stringify({answers:state.answers,selections:selections(),requirements:plannerDraftPayload(state.answers,state.journey).requirements}));location.href='index.html?resumePlanner=1';}
 function feedback(text,type='success'){const host=results.querySelector('.manta-page-feedback');if(!host)return;host.replaceChildren(el('p',{className:`manta-inline ${type}`,text}));host.scrollIntoView({behavior:'smooth',block:'nearest'});}
 
 async function saveDraft(){
@@ -141,7 +141,7 @@ function render(){
 
 function refresh(){recalculateJourney(state.journey);persistSearch();render();}
 async function rerun(){state.journey=searchTripJourney(state.data,state.answers,state.availability);refresh();}
-function showError(message){status.className='page-wrap trip-results-status error';status.replaceChildren(el('div',{children:[el('strong',{text:'Manta could not show this trip.'}),el('span',{text:message}),el('a',{text:'Open the trip planner',attrs:{href:'index (1).html'}})]}));}
+function showError(message){status.className='page-wrap trip-results-status error';status.replaceChildren(el('div',{children:[el('strong',{text:'Manta could not show this trip.'}),el('span',{text:message}),el('a',{text:'Open the trip planner',attrs:{href:'index.html'}})]}));}
 
 async function load(){
   const saved=searchState();if(!saved)return showError('Start a new search so Manta knows your island, dates, travelers, stay, and activities.');

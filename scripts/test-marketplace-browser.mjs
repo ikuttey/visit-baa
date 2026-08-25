@@ -13,9 +13,13 @@ const server = createServer(async (request, response) => {
     if (pathname === '/favicon.ico') { response.writeHead(204); response.end(); return; }
     const file = path.resolve(root, `.${pathname === '/' ? '/index.html' : pathname}`);
     if (!file.startsWith(root)) throw new Error('Not found');
+    const body = await readFile(file);
     response.writeHead(200, { 'content-type':types[path.extname(file)] || 'application/octet-stream' });
-    response.end(await readFile(file));
-  } catch { response.writeHead(404); response.end('Not found'); }
+    response.end(body);
+  } catch {
+    if (!response.headersSent) response.writeHead(404, { 'content-type':'text/plain' });
+    if (!response.writableEnded) response.end('Not found');
+  }
 });
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -108,6 +112,8 @@ try {
   await results.getByRole('button',{name:'Add This Trip'}).click();
   await results.locator('.manta-auth-prompt').waitFor();
   assert.ok(await homePage.evaluate(()=>Boolean(localStorage.getItem('baa_planner_draft'))),'anonymous planner draft must remain on the device');
+  await Promise.all([homePage.waitForURL(/index\.html\?resumePlanner=1$/),results.getByRole('button',{name:'Edit trip details'}).click()]);
+  await homePage.locator('.manta-planner-drawer[open]').waitFor();
   for(const width of [320,375,430]){
     await homePage.setViewportSize({width,height:840});
     await homePage.goto(`${baseUrl}/index.html`,{waitUntil:'networkidle'});
@@ -118,7 +124,7 @@ try {
     assert.ok(mobileDrawer.width<=width,`Manta drawer must fit ${width}px`);
   }
   await homePage.setViewportSize({width:1280,height:900});
-  await homePage.goto(`${baseUrl}/index%20(1).html`,{waitUntil:'networkidle'});
+  await homePage.goto(`${baseUrl}/index.html`,{waitUntil:'networkidle'});
   await homePage.locator('#islandSelect').selectOption({label:'Maalhos'});
   await homePage.locator('#whenButton').click();
   await homePage.locator('#heroCheckin').fill(future);

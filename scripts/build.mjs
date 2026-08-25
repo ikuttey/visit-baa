@@ -1,4 +1,4 @@
-import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -19,11 +19,6 @@ for (const entry of rootFiles) {
   }
 }
 await cp(path.join(root, 'assets'), path.join(dist, 'assets'), { recursive: true });
-
-// Serve the full public site directly at the production root while retaining
-// the original filename for backwards-compatible links in this prototype.
-const home = await readFile(path.join(root, 'index (1).html'), 'utf8');
-await writeFile(path.join(dist, 'index.html'), home, 'utf8');
 
 const config = {
   supabaseUrl: process.env.SUPABASE_URL,

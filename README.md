@@ -10,7 +10,7 @@ treating a build as production-ready.
 
 ## Main entry points
 
-- `index (1).html` — preserved public homepage
+- `index.html` — public homepage
 - `register.html` — operator registration
 - `login.html` — operator/admin/traveler login
 - `traveler-register.html` — traveler account registration
