@@ -29,10 +29,6 @@ if (!document.getElementById('operatorHeaderLayoutV3Styles')) {
   document.head.append(style);
 }
 
-const operatorPage=document.body?.dataset?.operatorPage||'';
-if(operatorPage==='rates'){
+if(document.body?.dataset?.operatorPage==='rates'){
   queueMicrotask(()=>import('./operator-rates-anchor-v2.js?v=1').catch((error)=>console.error('Promotions anchor failed:',error)));
-}
-if(operatorPage==='overview'){
-  queueMicrotask(()=>import('./operator-home-partner-v3.js?v=1').catch((error)=>console.error('Partner home layout failed:',error)));
 }
