@@ -8,7 +8,10 @@ function el(tag,options={}){const node=document.createElement(tag);if(options.cl
 function moneyMap(values,empty='—'){const entries=Object.entries(values||{}).filter(([,amount])=>amount!=null&&Number.isFinite(Number(amount)));return entries.length?entries.map(([currency,amount])=>formatMoney(amount,currency)).join(' · '):empty;}
 
 function installV2Overview(){
-  installOperatorNavigation('overview');
+  // This enhancer only runs on the historical owner dashboard, which is now
+  // the V2 Property page. Treat it as an owner workspace so all V2 links stay
+  // visible and Property is highlighted instead of Overview.
+  installOperatorNavigation('property',{access_role:'owner'});
   const oldAvailable=document.getElementById('availableSpacesCount');
   if(oldAvailable){const label=oldAvailable.parentElement?.querySelector('span');if(label)label.textContent='Arrivals today';}
   if(document.getElementById('operatorV2Overview'))return;
