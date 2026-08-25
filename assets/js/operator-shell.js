@@ -35,7 +35,7 @@ const PARTNER_MENUS = [
     items:[
       ['property','operator-dashboard.html?tab=business','Property details'],
       ['listings','operator-content.html','Listings & rooms'],
-      ['settings','operator-settings.html#arrivalPanel','Arrival information']
+      ['arrival','operator-settings.html#arrivalPanel','Arrival information']
     ]
   },
   { key:'promotions', label:'Promotions', href:'operator-rates.html#promotions' },
@@ -71,10 +71,14 @@ function navAllowed(key,business){
   const role=business.access_role||'owner';
   if(['owner','admin'].includes(role))return true;
   if(key==='overview'||key==='settings')return true;
-  if(key==='calendar'||key==='external')return businessCan(business,'calendar');
+  if(key==='calendar')return businessCan(business,'calendar');
+  // The external-bookings screen still loads owner-owned businesses directly;
+  // keep it owner-only until that legacy data loader is converted to staff RPCs.
+  if(key==='external')return false;
   if(key==='reservations')return businessCan(business,'reservations')||businessCan(business,'finance');
   if(key==='inbox')return businessCan(business,'messages');
   if(key==='listings'||key==='rates'||key==='promotions')return businessCan(business,'content');
+  if(key==='arrival')return businessCan(business,'arrival');
   if(key==='reviews')return businessCan(business,'staff_admin');
   if(key==='analytics')return businessCan(business,'analytics');
   if(key==='property')return ['owner','admin'].includes(role);
@@ -135,7 +139,6 @@ function installDesktopPartnerNav(active,business){
   wrap.append(nav);
   inner.insertAdjacentElement('afterend',wrap);
 
-  // Close open menus when the operator chooses another area or clicks outside.
   nav.addEventListener('click',(event)=>{
     if(event.target.closest('.operator-nav-menu-popup a'))nav.querySelectorAll('details[open]').forEach((d)=>d.removeAttribute('open'));
   });
