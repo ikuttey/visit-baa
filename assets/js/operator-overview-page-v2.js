@@ -12,14 +12,14 @@ function statusLabel(v){return String(v||'').replaceAll('_',' ');}
 
 function renderActions(){
   const host=document.getElementById('overviewActions');host.replaceChildren();
-  const actions=[
-    ['reservations','operator-reservations.html','Reservations'],['calendar','operator-calendar.html','Calendar / Schedule'],['content','operator-rates.html','Rates & Promotions'],['analytics','operator-analytics.html','Analytics'],['arrival','operator-settings.html','Arrival & Settings']
-  ];
-  actions.filter(([permission])=>businessCan(state.business,permission)).forEach(([,href,label],index)=>{const a=document.createElement('a');a.href=href;a.className=`button ${index===0?'aqua':'secondary'}`;a.textContent=label;host.append(a);});
-  if(['owner','admin'].includes(state.business?.access_role||'owner')){
-    const listings=document.createElement('a');listings.href='operator-dashboard.html?tab=listings';listings.className='button secondary';listings.textContent='Listings';host.append(listings);
-    const property=document.createElement('a');property.href='operator-dashboard.html?tab=business';property.className='button secondary';property.textContent='Property';host.append(property);
-  }
+  const actions=[];
+  if(businessCan(state.business,'reservations'))actions.push(['operator-reservations.html','Reservations']);
+  if(businessCan(state.business,'calendar'))actions.push(['operator-calendar.html','Rates & availability']);
+  if(businessCan(state.business,'messages'))actions.push(['operator-inbox.html','Inbox']);
+  if(['owner','admin'].includes(state.business?.access_role||'owner'))actions.push(['operator-dashboard.html?tab=business','Property']);
+  if(businessCan(state.business,'content'))actions.push(['operator-rates.html#promotions','Promotions']);
+  if(businessCan(state.business,'analytics'))actions.push(['operator-analytics.html','Analytics']);
+  actions.forEach(([href,label],index)=>{const a=document.createElement('a');a.href=href;a.className=`button ${index===0?'aqua':'secondary'}`;a.textContent=label;host.append(a);});
 }
 
 function renderAttention(){
