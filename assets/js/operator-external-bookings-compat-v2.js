@@ -4,6 +4,15 @@
 
 const rangeForm = document.getElementById('availabilityRangeForm');
 if (rangeForm) {
+  // Prevent the historical range handler from writing V1-style availability
+  // even if an old cached/deep-linked UI manages to expose the hidden form.
+  rangeForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    window.location.href = 'operator-calendar.html';
+  }, true);
+  [...rangeForm.elements].forEach((control) => { control.disabled = true; });
+
   const panel = rangeForm.closest('.panel');
   if (panel) panel.hidden = true;
 
