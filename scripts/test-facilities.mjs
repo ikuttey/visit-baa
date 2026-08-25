@@ -59,14 +59,15 @@ assert.ok(fishing.groups.some((group) => group.label === 'Safety' && group.items
 assert.deepEqual(fishing.groups.find((group) => group.label === 'Other facilities / services').items, ['Fish barbecue arrangement']);
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const [operator, publicDetail, admin] = await Promise.all([
-  readFile(path.join(root, 'assets/js/operator-dashboard.js'), 'utf8'),
+const [operator, operatorHtml, publicDetail, admin] = await Promise.all([
+  readFile(path.join(root, 'assets/js/operator-content-v2.js'), 'utf8'),
+  readFile(path.join(root, 'operator-content.html'), 'utf8'),
   readFile(path.join(root, 'assets/js/listing-detail.js'), 'utf8'),
   readFile(path.join(root, 'assets/js/admin-dashboard.js'), 'utf8')
 ]);
-assert.match(operator, /amenities:\s*facilitiesSelector\.collect\(\)/, 'all listing categories must save selected amenities');
-assert.doesNotMatch(operator, /amenities:\s*accommodation\s*\?/, 'amenities must not be restricted to accommodation');
-assert.match(operator, /OPERATOR_LISTING_DEFAULTS\[state\.business\?\.category\]/);
+assert.match(operator, /amenities:list\('amenities'\)/, 'V2 Listings must save facilities/amenities for every category');
+assert.doesNotMatch(operator, /amenities:\s*val\('listingCategory'\)===['"]accommodation['"]/, 'amenities must not be restricted to accommodation');
+assert.match(operatorHtml, /id="amenities"/, 'V2 Listings must expose the facilities/amenities field');
 assert.match(publicDetail, /renderFacilitiesView\(listing\)/);
 assert.match(admin, /renderFacilitiesView\(listing, \{ context: 'admin' \}\)/);
 
