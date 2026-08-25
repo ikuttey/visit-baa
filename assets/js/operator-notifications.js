@@ -24,24 +24,24 @@ function installStyles() {
   style.id = 'operatorNotificationStyles';
   style.textContent = `
     .operator-notification-center{position:relative;display:flex;align-items:center}
-    .operator-notification-toggle{position:relative;display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:7px 10px;border:1px solid rgba(12,95,103,.22);border-radius:999px;background:#fff;color:#12343b;font:inherit;font-weight:700;cursor:pointer}
-    .operator-notification-toggle:hover,.operator-notification-toggle:focus-visible{border-color:#0b8990;outline:none}
-    .operator-notification-badge{display:none;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#c73838;color:#fff;font-size:11px;line-height:20px;text-align:center}
+    .operator-notification-toggle{position:relative;display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:7px 9px;border:1px solid rgba(255,255,255,.22);border-radius:4px;background:transparent;color:#fff;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+    .operator-notification-toggle:hover,.operator-notification-toggle:focus-visible{background:rgba(255,255,255,.1);outline:none}
+    .operator-notification-badge{display:none;min-width:19px;height:19px;padding:0 5px;border-radius:999px;background:#c73838;color:#fff;font-size:10px;line-height:19px;text-align:center}
     .operator-notification-badge.visible{display:inline-block}
-    .operator-notification-panel{position:absolute;z-index:80;top:calc(100% + 10px);right:0;width:min(390px,calc(100vw - 24px));max-height:min(560px,75vh);overflow:hidden;border:1px solid rgba(12,95,103,.18);border-radius:18px;background:#fff;box-shadow:0 22px 55px rgba(7,43,49,.2)}
+    .operator-notification-panel{position:absolute;z-index:100;top:calc(100% + 8px);right:0;width:min(390px,calc(100vw - 24px));max-height:min(560px,75vh);overflow:hidden;border:1px solid rgba(12,95,103,.18);border-radius:6px;background:#fff;box-shadow:0 18px 44px rgba(7,43,49,.22)}
     .operator-notification-panel[hidden]{display:none}
-    .operator-notification-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 16px;border-bottom:1px solid #e6eeee}
-    .operator-notification-head strong{font-size:15px}
-    .operator-notification-mark{border:0;background:transparent;color:#087b82;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+    .operator-notification-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;border-bottom:1px solid #e6eeee}
+    .operator-notification-head strong{font-size:14px;color:#18383e}
+    .operator-notification-mark{border:0;background:transparent;color:#087b82;font:inherit;font-size:11px;font-weight:700;cursor:pointer}
     .operator-notification-list{max-height:470px;overflow:auto}
-    .operator-notification-item{display:block;width:100%;padding:14px 16px;border:0;border-bottom:1px solid #edf2f2;background:#fff;color:#18383e;text-align:left;font:inherit;cursor:pointer}
+    .operator-notification-item{display:block;width:100%;padding:12px 14px;border:0;border-bottom:1px solid #edf2f2;background:#fff;color:#18383e;text-align:left;font:inherit;cursor:pointer}
     .operator-notification-item:hover,.operator-notification-item:focus-visible{background:#f3fbfb;outline:none}
-    .operator-notification-item.unread{background:#eefafa;border-left:4px solid #0b8990;padding-left:12px}
-    .operator-notification-item strong{display:block;margin-bottom:4px;font-size:14px}
-    .operator-notification-item span{display:block;font-size:12px;line-height:1.45;color:#536d72}
-    .operator-notification-item time{display:block;margin-top:7px;font-size:11px;color:#83979a}
-    .operator-notification-empty{padding:24px 18px;text-align:center;color:#667f83;font-size:13px}
-    @media(max-width:760px){.operator-notification-toggle .label{display:none}.operator-notification-panel{position:fixed;top:70px;left:12px;right:12px;width:auto;max-height:calc(100vh - 86px)}}
+    .operator-notification-item.unread{background:#eefafa;border-left:4px solid #0b8990;padding-left:10px}
+    .operator-notification-item strong{display:block;margin-bottom:3px;font-size:13px}
+    .operator-notification-item span{display:block;font-size:11px;line-height:1.45;color:#536d72}
+    .operator-notification-item time{display:block;margin-top:6px;font-size:10px;color:#83979a}
+    .operator-notification-empty{padding:22px 16px;text-align:center;color:#667f83;font-size:12px}
+    @media(max-width:760px){.operator-notification-toggle .label{display:none}.operator-notification-panel{position:fixed;top:62px;left:10px;right:10px;width:auto;max-height:calc(100vh - 78px)}}
   `;
   document.head.append(style);
 }
@@ -113,13 +113,13 @@ function updateBadge() {
   badge.textContent = count > 99 ? '99+' : String(count);
   badge.classList.toggle('visible', count > 0);
   toggle.setAttribute('aria-label', count ? `${count} unread operator notification${count === 1 ? '' : 's'}` : 'Operator notifications');
-  document.title = count ? `(${count}) Operator dashboard — Visit Baa` : document.title.replace(/^\(\d+\)\s*/, '');
+  document.title = count ? `(${count}) ${document.title.replace(/^\(\d+\)\s*/, '')}` : document.title.replace(/^\(\d+\)\s*/, '');
 }
 
 function render() {
   list.replaceChildren();
   if (!state.items.length) {
-    list.append(element('div', { className: 'operator-notification-empty', text: 'No notifications yet. New booking requests and important account updates will appear here.' }));
+    list.append(element('div', { className: 'operator-notification-empty', text: 'No notifications yet. New bookings, guest messages and important account updates will appear here.' }));
     markAllButton.hidden = true;
     updateBadge();
     return;
@@ -178,11 +178,19 @@ async function markAllRead() {
   }
 }
 
+function notificationDestination(item){
+  if(item.type==='customer_message'&&item.booking_id)return `operator-inbox.html?booking=${encodeURIComponent(item.booking_id)}`;
+  if(['booking_request','booking_cancelled','payment_reference'].includes(item.type)&&item.booking_id)return `operator-reservations.html?id=${encodeURIComponent(item.booking_id)}`;
+  if(['listing_published','listing_approved','listing_changes_requested','listing_rejected'].includes(item.type)&&item.listing_id)return `operator-content.html?listing=${encodeURIComponent(item.listing_id)}`;
+  if(['business_verified','business_approved','business_changes_requested','business_rejected','business_suspended'].includes(item.type))return 'operator-dashboard.html?tab=business';
+  return item.action_url||'operator-overview.html';
+}
+
 async function openNotification(item) {
   try { await markRead(item); }
   catch (error) { console.error('Could not mark notification read:', error); }
   setOpen(false);
-  if (item.action_url) window.location.href = item.action_url;
+  window.location.href = notificationDestination(item);
 }
 
 function subscribe() {
