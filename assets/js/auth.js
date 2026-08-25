@@ -85,13 +85,34 @@ export function passwordResetRedirect() {
   return siteUrl('reset-password.html');
 }
 
-// The legacy owner dashboard keeps account/business verification separate from
-// service listing. Load focused enhancements only on that page.
-if (typeof document !== 'undefined' && document.getElementById('businessForm') && document.getElementById('listingForm')) {
-  queueMicrotask(() => import('./operator-header-layout-v2.js?v=1').catch((error) => console.error('Operator header layout fix failed:', error)));
-  queueMicrotask(() => import('./operator-onboarding-simple.js?v=2').catch((error) => console.error('Operator onboarding enhancement failed:', error)));
-  queueMicrotask(() => import('./operator-notifications.js?v=2').catch((error) => console.error('Operator notification center failed:', error)));
-  queueMicrotask(() => import('./operator-overview-v2.js?v=1').catch((error) => console.error('Operator V2 overview failed:', error)));
-  queueMicrotask(() => import('./operator-listing-enhancements-v2.js?v=2').catch((error) => console.error('Operator listing enhancements failed:', error)));
-  queueMicrotask(() => import('./operator-category-unlock-v2.js?v=1').catch((error) => console.error('Operator listing category compatibility failed:', error)));
+if (typeof document !== 'undefined') {
+  const operatorPage = document.body?.dataset?.operatorPage || '';
+
+  // Shared V2 header layout: navigation scrolls inside its own region and can
+  // never sit underneath Notifications / Log out.
+  if (operatorPage) {
+    queueMicrotask(() => import('./operator-header-layout-v2.js?v=2').catch((error) => console.error('Operator header layout fix failed:', error)));
+  }
+
+  if (operatorPage === 'calendar') {
+    queueMicrotask(() => import('./operator-calendar-submit-guard-v2.js?v=1').catch((error) => console.error('Operator calendar submit guard failed:', error)));
+  }
+
+  // The historical owner dashboard remains only for Property / business
+  // profile management. Dedicated V2 pages own all operational workflows.
+  if (document.getElementById('businessForm') && document.getElementById('listingForm')) {
+    queueMicrotask(() => import('./operator-header-layout-v2.js?v=2').catch((error) => console.error('Operator header layout fix failed:', error)));
+    queueMicrotask(() => import('./operator-dashboard-retire-legacy-v2.js?v=1').catch((error) => console.error('Legacy operator dashboard retirement failed:', error)));
+    queueMicrotask(() => import('./operator-onboarding-simple.js?v=2').catch((error) => console.error('Operator onboarding enhancement failed:', error)));
+    queueMicrotask(() => import('./operator-notifications.js?v=2').catch((error) => console.error('Operator notification center failed:', error)));
+    queueMicrotask(() => import('./operator-overview-v2.js?v=1').catch((error) => console.error('Operator V2 overview failed:', error)));
+    queueMicrotask(() => import('./operator-listing-enhancements-v2.js?v=2').catch((error) => console.error('Operator listing enhancements failed:', error)));
+    queueMicrotask(() => import('./operator-category-unlock-v2.js?v=1').catch((error) => console.error('Operator listing category compatibility failed:', error)));
+  }
+
+  // External-bookings stays available for manual channel reservations, while
+  // Calendar & Schedule is the only inventory/rate editor.
+  if (document.getElementById('externalBookingForm') && document.getElementById('availabilityRangeForm')) {
+    queueMicrotask(() => import('./operator-external-bookings-compat-v2.js?v=1').catch((error) => console.error('External bookings V2 compatibility failed:', error)));
+  }
 }
