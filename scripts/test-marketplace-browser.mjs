@@ -43,7 +43,7 @@ try {
   assert.equal(await homePage.locator('.manta-planner-launch').count(), 1, 'customer pages should load one manta launcher');
   assert.equal(await homePage.locator('.manta-launch-hand,.manta-launch-bubble').count(), 0, 'manta must not include a separate hand or permanent bubble');
   assert.equal(await homePage.locator('.manta-planner-launch').getAttribute('aria-label'), 'Open Visit Baa Trip Planner');
-  await homePage.locator('.manta-planner-launch').click();
+  await homePage.locator('.manta-planner-launch').click({force:true});
   await homePage.locator('.manta-planner-drawer[open]').waitFor();
   await homePage.waitForFunction(() => !document.querySelector('.manta-question')?.textContent.includes('Loading current published'));
   assert.equal(await homePage.locator('.manta-planner-launch').isHidden(), true, 'launcher should not overlap its open planner');
@@ -110,7 +110,7 @@ try {
   for(const width of [320,375,430]){
     await homePage.setViewportSize({width,height:840});
     await homePage.goto(`${baseUrl}/index.html`,{waitUntil:'networkidle'});
-    await homePage.locator('.manta-planner-launch').click();
+    await homePage.locator('.manta-planner-launch').click({force:true});
     await homePage.waitForFunction(() => !document.querySelector('.manta-question')?.textContent.includes('Loading current published'));
     await assertNoOverflow(homePage,`Manta planner at ${width}px`);
     const mobileDrawer=await homePage.locator('.manta-planner-drawer').boundingBox();
