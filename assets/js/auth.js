@@ -102,17 +102,15 @@ if (typeof document !== 'undefined') {
   // profile management. Dedicated V2 pages own all operational workflows.
   if (document.getElementById('businessForm') && document.getElementById('listingForm')) {
     queueMicrotask(() => import('./operator-header-layout-v2.js?v=2').catch((error) => console.error('Operator header layout fix failed:', error)));
-    queueMicrotask(() => import('./operator-dashboard-retire-legacy-v2.js?v=1').catch((error) => console.error('Legacy operator dashboard retirement failed:', error)));
+    queueMicrotask(() => import('./operator-dashboard-retire-legacy-v2.js?v=2').catch((error) => console.error('Legacy operator dashboard retirement failed:', error)));
     queueMicrotask(() => import('./operator-onboarding-simple.js?v=2').catch((error) => console.error('Operator onboarding enhancement failed:', error)));
     queueMicrotask(() => import('./operator-notifications.js?v=2').catch((error) => console.error('Operator notification center failed:', error)));
-    queueMicrotask(() => import('./operator-overview-v2.js?v=1').catch((error) => console.error('Operator V2 overview failed:', error)));
-    queueMicrotask(() => import('./operator-listing-enhancements-v2.js?v=2').catch((error) => console.error('Operator listing enhancements failed:', error)));
-    queueMicrotask(() => import('./operator-category-unlock-v2.js?v=1').catch((error) => console.error('Operator listing category compatibility failed:', error)));
+    queueMicrotask(() => import('./operator-overview-v2.js?v=2').catch((error) => console.error('Operator V2 property overview failed:', error)));
   }
 
   // External-bookings stays available for manual channel reservations, while
   // Calendar & Schedule is the only inventory/rate editor.
   if (document.getElementById('externalBookingForm') && document.getElementById('availabilityRangeForm')) {
-    queueMicrotask(() => import('./operator-external-bookings-compat-v2.js?v=1').catch((error) => console.error('External bookings V2 compatibility failed:', error)));
+    queueMicrotask(() => import('./operator-external-bookings-compat-v2.js?v=2').catch((error) => console.error('External bookings V2 compatibility failed:', error)));
   }
 }
