@@ -43,7 +43,7 @@ if (form && !form.dataset.v2SubmitGuard) {
     const observer = new MutationObserver(() => {
       const text = String(pageMessage.textContent || '');
       if (/listing_schedule_rules_listing_id_day_of_week_start_time/i.test(text) || /duplicate key value/i.test(text)) {
-        pageMessage.textContent = 'A recurring schedule already exists for this listing, day and start time. Edit or delete the existing rule below instead of adding a duplicate.';
+        pageMessage.textContent = 'A recurring schedule already exists for this listing with the same weekday, start time and valid-from date. Edit or delete the existing rule below instead of adding a duplicate.';
         pageMessage.className = 'message warning';
         pageMessage.hidden = false;
       }
