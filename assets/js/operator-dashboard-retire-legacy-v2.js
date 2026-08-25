@@ -1,7 +1,7 @@
 // The historical operator-dashboard remains the Property / business-profile
 // screen, but V2 owns listings, calendar, reservations, rates and reviews on
-// dedicated pages. Hide the old operational tabs so their legacy write handlers
-// cannot overwrite V2-calculated inventory or bypass the newer workflows.
+// dedicated pages. Hide and block the old operational tabs so their legacy
+// write handlers cannot overwrite V2-calculated inventory or bypass workflows.
 
 const destinations = {
   listings: 'operator-content.html',
@@ -30,6 +30,18 @@ if (requestedTab && destinations[requestedTab]) {
   `;
   document.head.append(style);
 
+  const legacyPanel = (node) => node?.closest?.('.tab-panel[data-tab-panel]')?.dataset?.tabPanel;
+
+  // Block every submit originating from a retired operational panel. The V1
+  // handlers stay in the bundle only because Property still uses that file.
+  document.addEventListener('submit', (event) => {
+    const tab = legacyPanel(event.target);
+    if (!tab || !destinations[tab]) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    window.location.href = destinations[tab];
+  }, true);
+
   const forceBusinessProfile = () => {
     document.querySelectorAll('.tabs .tab[data-tab]').forEach((tab) => {
       const legacy = tab.dataset.tab !== 'business';
@@ -40,6 +52,9 @@ if (requestedTab && destinations[requestedTab]) {
     });
     document.querySelectorAll('.tab-panel[data-tab-panel]').forEach((panel) => {
       panel.hidden = panel.dataset.tabPanel !== 'business';
+      if (destinations[panel.dataset.tabPanel]) {
+        panel.querySelectorAll('input,select,textarea,button').forEach((control) => { control.disabled = true; });
+      }
     });
 
     const heading = document.querySelector('.page-heading h1');
@@ -69,6 +84,13 @@ if (requestedTab && destinations[requestedTab]) {
   document.addEventListener('click', (event) => {
     const control = event.target.closest('button, a');
     if (!control) return;
+    const tab = legacyPanel(control);
+    if (tab && destinations[tab]) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.location.href = destinations[tab];
+      return;
+    }
     const text = String(control.textContent || '').replace(/^\s*\+\s*/, '').trim().toLowerCase();
     if (control.id === 'newListingButton' || text === 'add listing' || text === 'add service or listing') {
       event.preventDefault();
