@@ -1,19 +1,57 @@
 import { requireSupabase } from './supabase-client.js';
 import { logout, requireOperator } from './auth.js';
 
+// Visit Baa keeps its own branding/colors, but the operator information
+// architecture follows the familiar OTA partner-extranet pattern: a compact
+// account bar followed by a dedicated operations navigation row.
 export const OPERATOR_NAV = [
-  ['overview','operator-overview.html','Overview'],
-  ['calendar','operator-calendar.html','Calendar / Schedule'],
+  ['overview','operator-overview.html','Home'],
+  ['calendar','operator-calendar.html','Calendar'],
   ['reservations','operator-reservations.html','Reservations'],
   ['listings','operator-content.html','Listings'],
   ['property','operator-dashboard.html?tab=business','Property'],
-  ['rates','operator-rates.html','Rates & Promotions'],
+  ['rates','operator-rates.html','Rate plans'],
+  ['promotions','operator-rates.html#promotions','Promotions'],
+  ['inbox','operator-inbox.html','Inbox'],
   ['reviews','operator-reviews.html','Reviews'],
   ['analytics','operator-analytics.html','Analytics'],
-  ['settings','operator-settings.html','Settings']
+  ['settings','operator-settings.html','Settings'],
+  ['external','operator-availability.html','External bookings']
 ];
 
-function el(tag,options={}){const node=document.createElement(tag);if(options.className)node.className=options.className;if(options.text!=null)node.textContent=String(options.text);if(options.attrs)Object.entries(options.attrs).forEach(([k,v])=>node.setAttribute(k,String(v)));(options.children||[]).filter(Boolean).forEach((child)=>node.append(child));return node;}
+const PARTNER_MENUS = [
+  { key:'overview', label:'Home', href:'operator-overview.html' },
+  {
+    key:'rates-availability', label:'Rates & availability',
+    items:[
+      ['calendar','operator-calendar.html','Calendar'],
+      ['rates','operator-rates.html','Rate plans'],
+      ['external','operator-availability.html','External bookings']
+    ]
+  },
+  { key:'reservations', label:'Reservations', href:'operator-reservations.html' },
+  {
+    key:'property-menu', label:'Property',
+    items:[
+      ['property','operator-dashboard.html?tab=business','Property details'],
+      ['listings','operator-content.html','Listings & rooms'],
+      ['settings','operator-settings.html#arrivalPanel','Arrival information']
+    ]
+  },
+  { key:'promotions', label:'Promotions', href:'operator-rates.html#promotions' },
+  { key:'inbox', label:'Inbox', href:'operator-inbox.html' },
+  { key:'reviews', label:'Reviews', href:'operator-reviews.html' },
+  { key:'analytics', label:'Analytics', href:'operator-analytics.html' }
+];
+
+function el(tag,options={}){
+  const node=document.createElement(tag);
+  if(options.className)node.className=options.className;
+  if(options.text!=null)node.textContent=String(options.text);
+  if(options.attrs)Object.entries(options.attrs).forEach(([k,v])=>node.setAttribute(k,String(v)));
+  (options.children||[]).filter(Boolean).forEach((child)=>node.append(child));
+  return node;
+}
 
 export function selectedBusinessId(){return localStorage.getItem('baa_operator_business_id')||'';}
 export function rememberBusiness(id){if(id)localStorage.setItem('baa_operator_business_id',id);}
@@ -33,31 +71,94 @@ function navAllowed(key,business){
   const role=business.access_role||'owner';
   if(['owner','admin'].includes(role))return true;
   if(key==='overview'||key==='settings')return true;
-  if(key==='calendar')return businessCan(business,'calendar');
+  if(key==='calendar'||key==='external')return businessCan(business,'calendar');
   if(key==='reservations')return businessCan(business,'reservations')||businessCan(business,'finance');
-  if(key==='listings'||key==='rates')return businessCan(business,'content');
+  if(key==='inbox')return businessCan(business,'messages');
+  if(key==='listings'||key==='rates'||key==='promotions')return businessCan(business,'content');
   if(key==='reviews')return businessCan(business,'staff_admin');
   if(key==='analytics')return businessCan(business,'analytics');
-  // Business identity / verification fields remain owner-only.
+  if(key==='property')return ['owner','admin'].includes(role);
   return false;
 }
 
-export function installOperatorNavigation(active='overview',business=null){
-  const allowed=OPERATOR_NAV.filter(([key])=>navAllowed(key,business));
-  const nav=document.querySelector('.app-nav');
-  if(nav){
-    [...nav.querySelectorAll('[data-operator-v2-link]')].forEach((item)=>item.remove());
-    const logoutButton=document.getElementById('logoutButton');
-    const group=el('div',{className:'operator-v2-nav',attrs:{'data-operator-v2-link':'1','aria-label':'Operator workspace'}});
-    allowed.forEach(([key,href,label])=>group.append(el('a',{text:label,attrs:{href,'aria-current':key===active?'page':'false'}})));
-    if(logoutButton)nav.insertBefore(group,logoutButton);else nav.append(group);
+function resolvedActive(active){
+  if(active==='rates'&&window.location.hash==='#promotions')return 'promotions';
+  return active;
+}
+
+function menuActive(menu,active){
+  if(menu.items)return menu.items.some(([key])=>key===active);
+  return menu.key===active;
+}
+
+function installDesktopPartnerNav(active,business){
+  const header=document.querySelector('.app-header');
+  const inner=document.querySelector('.app-header-inner');
+  const accountNav=document.querySelector('.app-nav');
+  if(!header||!inner||!accountNav)return;
+
+  header.querySelector('.operator-partner-tabs-wrap')?.remove();
+  accountNav.querySelectorAll('[data-operator-account-link]').forEach((item)=>item.remove());
+
+  // Existing page templates already include Visit website + Log out. Keep them
+  // as account actions and put Settings beside Notifications instead of mixing
+  // them into the main operations navigation.
+  const logoutButton=document.getElementById('logoutButton');
+  if(navAllowed('settings',business)){
+    const settings=el('a',{
+      className:'operator-account-link',
+      text:'Settings',
+      attrs:{href:'operator-settings.html','data-operator-account-link':'1','aria-current':active==='settings'?'page':'false'}
+    });
+    if(logoutButton)accountNav.insertBefore(settings,logoutButton);else accountNav.append(settings);
   }
 
+  const wrap=el('div',{className:'operator-partner-tabs-wrap',attrs:{'data-operator-v2-link':'1'}});
+  const nav=el('nav',{className:'operator-v2-nav',attrs:{'aria-label':'Operator workspace'}});
+
+  PARTNER_MENUS.forEach((menu)=>{
+    const isActive=menuActive(menu,active);
+    if(menu.items){
+      const visible=menu.items.filter(([key])=>navAllowed(key,business));
+      if(!visible.length)return;
+      const details=el('details',{className:`operator-nav-menu${isActive?' active':''}`});
+      const summary=el('summary',{text:menu.label,attrs:{'aria-current':isActive?'page':'false'}});
+      const popup=el('div',{className:'operator-nav-menu-popup'});
+      visible.forEach(([key,href,label])=>popup.append(el('a',{text:label,attrs:{href,'aria-current':key===active?'page':'false'}})));
+      details.append(summary,popup);nav.append(details);
+    }else{
+      if(!navAllowed(menu.key,business))return;
+      nav.append(el('a',{className:isActive?'active':'',text:menu.label,attrs:{href:menu.href,'aria-current':isActive?'page':'false'}}));
+    }
+  });
+
+  wrap.append(nav);
+  inner.insertAdjacentElement('afterend',wrap);
+
+  // Close open menus when the operator chooses another area or clicks outside.
+  nav.addEventListener('click',(event)=>{
+    if(event.target.closest('.operator-nav-menu-popup a'))nav.querySelectorAll('details[open]').forEach((d)=>d.removeAttribute('open'));
+  });
+}
+
+function installMobilePartnerNav(active,business){
   document.querySelector('.operator-mobile-actions')?.remove();
   const mobile=el('nav',{className:'operator-mobile-actions',attrs:{'aria-label':'Operator mobile navigation'}});
-  const mobileKeys=new Set(['overview','calendar','reservations','listings','analytics','settings']);
-  allowed.filter(([key])=>mobileKeys.has(key)).forEach(([key,href,label])=>mobile.append(el('a',{text:key==='overview'?'Home':key==='reservations'?'Bookings':key==='analytics'?'Stats':key==='listings'?'Listings':label,attrs:{href,'aria-current':key===active?'page':'false'}})));
+  const entries=[
+    ['overview','operator-overview.html','Home'],
+    ['reservations','operator-reservations.html','Bookings'],
+    ['calendar','operator-calendar.html','Calendar'],
+    ['inbox','operator-inbox.html','Inbox'],
+    ['settings','operator-settings.html','More']
+  ];
+  entries.filter(([key])=>navAllowed(key,business)).forEach(([key,href,label])=>mobile.append(el('a',{text:label,attrs:{href,'aria-current':key===active?'page':'false'}})));
   if(mobile.childElementCount)document.body.append(mobile);
+}
+
+export function installOperatorNavigation(active='overview',business=null){
+  const current=resolvedActive(active);
+  installDesktopPartnerNav(current,business);
+  installMobilePartnerNav(current,business);
 }
 
 export async function loadOwnedBusinesses(){
@@ -107,8 +208,8 @@ export async function initializeOperatorPage(active='overview'){
     const table=document.getElementById('listingTable');if(table)table.innerHTML='<div class="empty-state"><strong>Register a business first</strong><span>Your business must exist before you can create listings. Open Property to register your business and submit it for administrator approval.</span><a class="button aqua" href="operator-dashboard.html?tab=business">Register business</a></div>';
   }
 
-  queueMicrotask(()=>import('./operator-header-layout-v2.js?v=1').catch((error)=>console.error('Operator header layout fix failed:',error)));
-  queueMicrotask(()=>import('./operator-notifications.js?v=2').catch((error)=>console.error('Operator notification center failed:',error)));
+  queueMicrotask(()=>import('./operator-header-layout-v2.js?v=3').catch((error)=>console.error('Operator header layout fix failed:',error)));
+  queueMicrotask(()=>import('./operator-notifications.js?v=3').catch((error)=>console.error('Operator notification center failed:',error)));
   if(active==='listings'&&business){
     await import('./operator-content-compat-v2.js?v=1').catch((error)=>console.error('Listing schema compatibility failed:',error));
     queueMicrotask(()=>import('./operator-content-enhancements.js?v=2').catch((error)=>console.error('Listing enhancements failed:',error)));
