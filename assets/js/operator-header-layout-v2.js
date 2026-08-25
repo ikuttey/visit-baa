@@ -28,3 +28,7 @@ if (!document.getElementById('operatorHeaderLayoutV3Styles')) {
   `;
   document.head.append(style);
 }
+
+if(document.body?.dataset?.operatorPage==='rates'){
+  queueMicrotask(()=>import('./operator-rates-anchor-v2.js?v=1').catch((error)=>console.error('Promotions anchor failed:',error)));
+}
