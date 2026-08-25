@@ -10,7 +10,7 @@
     "check": "node scripts/static-checks.mjs",
     "test:browser:public": "node scripts/test-public-browser.mjs",
     "test:browser:facilities": "node scripts/test-facilities-browser.mjs",
-    "test:browser:operator-media": "node scripts/test-operator-media-browser.mjs",
+    "test:browser:operator-v2": "node scripts/test-operator-v2-browser.mjs",
     "test:marketplace": "node scripts/test-marketplace.mjs",
     "test:browser:marketplace": "node scripts/test-marketplace-browser.mjs",
     "test:routes": "node scripts/test-route-planner.mjs",
@@ -18,7 +18,7 @@
     "test:manta": "node scripts/test-manta-simple-flow.mjs",
     "test:packages": "node scripts/test-multi-business-packages.mjs",
     "test:pricing": "node scripts/test-listing-pricing.mjs",
-    "test": "node scripts/test-listing-submission.mjs && node scripts/test-listing-workflow.mjs && node scripts/test-facilities.mjs && node scripts/test-marketplace.mjs && node scripts/test-route-planner.mjs && node scripts/test-listing-pricing.mjs && node scripts/test-trip-planner.mjs && node scripts/test-manta-simple-flow.mjs && node scripts/test-multi-business-packages.mjs && node scripts/static-checks.mjs"
+    "test": "node scripts/test-listing-submission.mjs && node scripts/test-listing-workflow.mjs && node scripts/test-facilities.mjs && node scripts/test-marketplace.mjs && node scripts/test-route-planner.mjs && node scripts/test-listing-pricing.mjs && node scripts/test-trip-planner.mjs && node scripts/test-manta-simple-flow.mjs && node scripts/test-multi-business-packages.mjs && node scripts/static-checks.mjs && node scripts/test-operator-v2-browser.mjs"
   },
   "devDependencies": {
     "playwright": "1.62.1"
