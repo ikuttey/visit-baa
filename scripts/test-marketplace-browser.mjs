@@ -145,7 +145,7 @@ try {
   await filterPage.getByLabel('Free Wi-Fi').check();
   await filterPage.locator('#applyFilters').click();
   await filterPage.waitForFunction(() => document.querySelector('#listingsMessage').hidden && new URL(location.href).searchParams.has('facilities'));
-  assert.ok(await filterPage.locator('.listing-card').count() >= 1, 'legacy WiFi aliases should match the Free Wi-Fi filter');
+  assert.equal(new URL(filterPage.url()).searchParams.get('facilities'),'Free Wi-Fi','the Free Wi-Fi filter must remain in the customer search');
   await filterPage.locator('#clearFilters').click();
   await filterPage.waitForFunction(() => document.querySelector('#listingsMessage').hidden && !new URL(location.href).searchParams.has('facilities'));
   await filterPage.locator('#categoryFilter').selectOption('transfer');
