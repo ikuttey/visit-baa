@@ -16,7 +16,10 @@ function normalizeHomepageNavigation() {
   if (brand) {
     brand.href = 'index.html';
     brand.setAttribute('aria-label', 'Visit Baa home');
-    brand.innerHTML = '<img class="visit-baa-brand-logo" src="assets/images/visit-baa-logo.png?v=3" alt="Visit Baa" decoding="sync" fetchpriority="high">';
+    brand.innerHTML = [
+      '<img class="visit-baa-brand-icon" src="assets/images/visit-baa-icon.png?v=4" alt="" aria-hidden="true" decoding="sync" fetchpriority="high">',
+      '<span class="visit-baa-wordmark"><span class="visit-baa-wordmark-visit">Visit</span> <span class="visit-baa-wordmark-baa">Baa</span></span>'
+    ].join('');
   }
 
   const nav = header.querySelector('.navlinks');
